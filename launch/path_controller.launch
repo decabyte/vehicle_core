@@ -1,0 +1,6 @@
+<launch>
+
+    <!-- start the path navigator -->
+    <node name="path_controller" pkg="vehicle_core" type="node_path.py" output="screen" />
+
+</launch>

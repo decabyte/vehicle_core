@@ -1,0 +1,16 @@
+<launch>
+
+    <!-- use Nessie AUV throttle limit -->
+    <param name="thrusters/throttle_limit" value="85"/>
+
+    <!-- start the simulated thrusters -->
+    <rosparam command="load" file="$(find vehicle_core)/conf/thruster_model.yaml"/>
+
+    <node name="thrusters_simulator" pkg="vehicle_core" type="node_thruster_sim.py" output="screen">
+        <!-- set topics input and outputs -->
+        <param name="topic_input" value="thrusters/commands"/>
+        <param name="topic_feedback" value="thrusters/status"/>
+        <param name="topic_forces" value="forces/sim/body"/>
+    </node>
+
+</launch>

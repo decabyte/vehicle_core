@@ -1,0 +1,4 @@
+navigation_simulator:
+    # general options
+    added_coriolis: true
+    dynamic_buoyancy: false

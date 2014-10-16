@@ -1,0 +1,95 @@
+<launch>
+
+    <!-- rviz -->
+    <!--<node name="rviz" pkg="rviz" type="rviz" args="-d $(find navigation_simulator)/launch/nav_multi.rviz"/>-->
+
+    <!-- uwsim -->
+    <!--<include file="$(find osl_uwsim_scenario)/launch/uwsim_multi.launch"/>-->
+
+    <!-- use Nessie AUV throttle limit -->
+    <param name="thrusters/throttle_limit" value="85"/>
+
+    <!-- robot #1 -->
+    <group ns="nessieA">
+        <!-- start the thruster model -->
+        <node name="thrusters_simulator" pkg="vehicle_core" type="thrusters_simulator.py" output="screen">
+          <!-- set topics input and outputs -->
+          <param name="topic_input" value="thrusters/commands"/>
+          <param name="topic_feedback" value="thrusters/model"/>
+          <param name="topic_forces" value="forces/body"/>
+        </node>
+
+        <!-- start the navigation simulator -->
+        <node name="nav_sim" pkg="vehicle_core" type="nav_sim.py" output="screen">
+            <!-- sim_rate: publish rate of nav messages (default: 10 Hz) -->
+            <param name="sim_rate" value="10"/>
+
+            <!-- set initial position -->
+            <param name="pose_x" value="0" type="int"/>
+            <param name="pose_y" value="0" type="int"/>
+            <param name="pose_z" value="5" type="int"/>
+
+            <!-- odometry configuration (defaults are used for single vehicle operations) -->
+            <param name="topic_odom" value="nav/odometry"/>
+            <param name="frame_parent" value="odom"/>
+            <param name="frame_child" value="nessie_a"/>
+        </node>
+
+        <!-- start the vehicle controller -->
+        <rosparam command="load" file="$(find vehicle_core)/conf/pid_sim.yaml"/>
+        <!--<param name="controller/pitch_enable" value="false"/>-->
+
+        <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" output="screen">
+            <!-- redirect output -->
+            <param name="topic_output" value="thrusters/commands"/>
+        </node>
+
+        <!-- publish the geometry of the robot -->
+        <!--use join_state and kinematic layout to publish full transform tree to tf-->
+        <param name="robot_description" command="cat $(find vehicle_core)/data/nessie_multi_a.urdf"/>
+        <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" output="log"/>
+    </group>
+
+    <!-- robot #2 -->
+    <group ns="nessieB">
+        <!-- start the thruster model -->
+        <node name="thrusters_simulator" pkg="vehicle_core" type="thrusters_simulator.py" output="screen">
+          <!-- set topics input and outputs -->
+          <param name="topic_input" value="thrusters/commands"/>
+          <param name="topic_feedback" value="thrusters/model"/>
+          <param name="topic_forces" value="forces/body"/>
+        </node>
+
+        <!-- start the navigation simulator -->
+        <node name="nav_sim" pkg="vehicle_core" type="nav_sim.py" output="screen">
+            <!-- sim_rate: publish rate of nav messages (default: 10 Hz) -->
+            <param name="sim_rate" value="10" />
+
+            <!-- set initial position -->
+            <param name="pose_x" value="5" type="int"/>
+            <param name="pose_y" value="0" type="int"/>
+            <param name="pose_z" value="5" type="int"/>
+
+            <!-- odometry configuration (defaults are used for single vehicle operations) -->
+            <param name="topic_odom" value="nav/odometry"/>
+            <param name="frame_parent" value="odom"/>
+            <param name="frame_child" value="nessie_b"/>
+        </node>
+
+
+        <!-- start the vehicle controller -->
+        <rosparam command="load" file="$(find vehicle_core)/conf/pid_sim.yaml"/>
+        <!--<param name="controller/pitch_enable" value="false"/>-->
+
+        <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" output="screen">
+            <!-- redirect output -->
+            <param name="topic_output" value="thrusters/commands"/>
+        </node>
+
+        <!-- publish the geometry of the robot -->
+        <!--use join_state and kinematic layout to publish full transform tree to tf-->
+        <param name="robot_description" command="cat $(find vehicle_core)/data/nessie_multi_b.urdf"/>
+        <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" output="log"/>
+    </group>
+
+</launch>

@@ -1,0 +1,13 @@
+<launch>
+
+    <!-- load the simulation config -->
+    <rosparam command="load" file="$(find vehicle_core)/conf/pid_sim.yaml"/>
+    <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
+
+    <!-- start the vehicle controller -->
+    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="-v" output="screen">
+        <!-- redirect output -->
+        <param name="topic_output" value="thrusters/commands"/>
+    </node>
+
+</launch>

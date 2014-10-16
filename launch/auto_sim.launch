@@ -1,0 +1,19 @@
+<launch>
+
+    <!-- load the pilot config -->
+    <rosparam command="load" file="$(find vehicle_core)/conf/auto_sim.yaml"/>
+    <rosparam command="load" file="$(find vehicle_core)/conf/vehicle_model.yaml"/>
+
+    <!-- use model-based controller if MODEL env var is set -->
+    <group if="$(optenv MODEL 0)">
+        <rosparam command="load" file="$(find vehicle_core)/conf/auto_sim_model.yaml"/>
+    </group>
+
+
+    <!-- start the vehicle controller -->
+    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="-v" output="screen">
+        <!-- redirect output -->
+        <param name="topic_output" value="thrusters/commands"/>
+    </node>
+
+</launch>

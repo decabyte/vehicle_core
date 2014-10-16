@@ -1,0 +1,38 @@
+pilot:
+    # general options
+    pitch_enable: false
+    prioritize_axis: true
+
+    # thruster mapping
+    adaptive_yaw: true
+    threshold_fast: 0.5
+    threshold_slow: 0.1
+
+    # fault tolerant control
+    fault_control: false
+    fault_speeds: false
+
+    # cascaded pid parameters
+    controller:
+        # general options
+        type: 'cascaded'
+        model_based: false
+
+        # position gains
+        pos_x: { kp: 0.250, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 8 m
+        pos_y: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 2 m
+        pos_z: { kp: 0.50, ki: 0.005, kd: 0.0, lim: 0.1 }
+        pos_k: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 0.0 }
+        pos_m: { kp: 1.273, ki: 0.10, kd: 0.0, lim: 5.0 }         # 4 / pi --> max out at 45 deg
+        pos_n: { kp: 0.63661, ki: 0.0, kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
+
+        # velocity gains
+        vel_u: { kp: 40.0, ki: 0.1, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        vel_v: { kp: 40.0, ki: 0.1, kd: 0.0, lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
+        vel_w: { kp: 60.0, ki: 0.75, kd: 15.0, lim: 4.0, input_lim: 1 }
+        vel_p: { kp: 0.00, ki: 0.0, kd: 0.0, lim: 0.1, input_lim: 1 }
+        vel_q: { kp: 1.0, ki: 0.05, kd: 0.0, lim: 1000.0, input_lim: 5.0 }
+        vel_r: { kp: 70.0, ki: 0.001, kd: 0.0, lim: 4.0, input_lim: 1 }
+
+        # depth compensation (takes into account trimming)
+        offset_z: 5.0

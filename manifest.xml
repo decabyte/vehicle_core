@@ -1,0 +1,33 @@
+<package>
+  <description brief="vehicle_core">
+
+     vehicle_core
+
+  </description>
+  <author>Valerio De Carolis, Marian Andrecki</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://osl.eps.hw.ac.uk</url>
+
+  <depend package="rospy"/>
+  <depend package="vehicle_interface"/>
+
+  <!-- extra messages -->
+  <depend package="diagnostic_msgs"/>
+
+  <!-- user interface related -->
+  <depend package="visualization_msgs"/>
+  <depend package="sensor_msgs"/>
+  <depend package="joy"/>
+
+  <!-- odometry related -->
+  <depend package="tf"/>
+  <depend package="nav_msgs"/>
+  <depend package="geometry_msgs"/>
+
+  <!-- legacy dependencies -->
+  <depend package="auv_msgs"/>
+
+</package>
+
+

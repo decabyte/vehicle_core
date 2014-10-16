@@ -1,0 +1,9 @@
+<launch>
+
+    <!-- rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find vehicle_core)/conf/nav_sim.rviz"/>
+
+    <!-- uwsim -->
+    <!--<include file="$(find osl_uwsim_scenario)/launch/uwsim_single.launch"/>-->
+
+</launch>

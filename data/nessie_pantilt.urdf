@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<robot name="nessie">
+
+    <link name="base_link">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <mesh filename="package://navigation_simulator/data/nessie.3ds"/>
+            </geometry>
+        </visual>
+    </link>
+
+    <joint name="pan" type="continuous">
+        <parent link="base_link"/>
+        <child link="p_and_tilt_body"/>
+        <axis xyz="0 0 1"/>
+        <origin xyz="0 0 0"/>
+    </joint>
+
+    <link name="p_and_tilt_body">
+        <visual>
+            <geometry>
+                <box size="0.075 0.075 0.225"/>
+            </geometry>
+            <material name="blue">
+                <color rgba="0 0 .8 1"/>
+            </material>
+            <origin rpy="0 0 0" xyz="0 0 -0.325"/>
+        </visual>
+    </link>
+
+    <joint name="tilt" type="continuous">
+        <parent link="p_and_tilt_body"/>
+        <child link="circular_sonar_frame"/>
+        <axis xyz="0 1 0"/>
+        <origin xyz="0 0 -0.45"/>
+    </joint>
+
+    <link name="circular_sonar_frame">
+        <visual>
+            <geometry>
+                <box size=".02 .15 .2"/>
+            </geometry>
+            <material name="red">
+                <color rgba="1 0 0 1"/>
+            </material>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+        </visual>
+    </link>
+
+    <!-- possible mounting angle of the sonar inside the pan&tilt -->
+    <joint name="roll" type="continuous">
+        <parent link="circular_sonar_frame"/>
+        <child link="sonar_body"/>
+        <axis xyz="1 0 0"/>
+        <origin xyz="0 0 -0.1"/>
+    </joint>
+
+    <link name="sonar_body">
+        <visual>
+            <geometry>
+                <box size=".2 .1 .1"/>
+            </geometry>
+            <material name="blue">
+                <color rgba="0 0 .8 1"/>
+            </material>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+        </visual>
+    </link>
+
+</robot>

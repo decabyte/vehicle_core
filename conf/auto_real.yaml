@@ -1,0 +1,42 @@
+pilot:
+    # general options
+    pitch_enable: false
+    prioritize_axis: true
+
+    # thruster mapping
+    adaptive_yaw: false
+    threshold_fast: 0.5
+    threshold_slow: 0.1
+
+    # cascaded pid parameters
+    controller:
+        # general options
+        type: 'cascaded'
+        model_based: false
+
+        # position limits
+        pos_x: { lim: 0.1 }
+        pos_y: { lim: 0.1 }
+        pos_z: { lim: 0.1 }
+        pos_k: { lim: 0.0 }
+        pos_m: { lim: 5.0 }
+        pos_n: { lim: 0.0 }
+
+        # velocity limits
+        vel_u: { lim: 1.0 }
+        vel_v: { lim: 1.0 }
+        vel_w: { lim: 4.0 }
+        vel_p: { lim: 0.1 }
+        vel_q: { lim: 1000.0 }
+        vel_r: { lim: 4.0 }
+
+        # adapt coefficients
+        adapt_coeff_pos: { x: 16.0, y: 6.0, z: 19.0, k: 13.5, m: 20.0, n: 13.0 }
+        adapt_coeff_vel: { u: 16.0, v: 6.0, w: 19.0, p: 13.5, q: 20.0, r: 13.0 }
+
+        adapt_limit_pos: 20
+        adapt_limit_vel: 10
+
+        # depth compensation (takes into account trimming)
+        offset_z: 5.0
+        offset_m: 0.0

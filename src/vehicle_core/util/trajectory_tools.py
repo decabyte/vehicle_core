@@ -1,0 +1,649 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""Trajectory generator module (TODO: this is subject to change)
+
+Tasks:
+    - generate trajectories
+    - produce dumps of trajectories for saving/sending (ie. JSON, CSV, ...)
+"""
+from __future__ import division
+
+import datetime
+
+import numpy as np
+np.set_printoptions(precision=3, suppress=True)
+
+import scipy.misc as sci
+import matplotlib.pyplot as plt
+
+
+def wrap_angle(angle):
+    """
+    :param angle: in radians
+    :return: angle in radians from range (-pi, +pi)
+    """
+    return (angle + np.pi) % (2*np.pi) - np.pi
+
+def wrap_angle_2pi(angle):
+    """
+    :param angle: in radians
+    :return: angle in radians from range (0, +2pi)
+    """
+    return ((angle + np.pi) % (2*np.pi))
+
+def pol2cart(r, th):
+    """Convert from polar coordinates to cartesian coordinates (2D)
+
+    :param r:
+    :param th:
+    :return: x, y
+    """
+    return np.cos(th) * r, np.sin(th) * r
+
+def cart2pol(x, y):
+    """Convert from cartesian coordinates to polar coordinates (2D)
+
+    :param x:
+    :param y:
+    :return: r, th
+    """
+    r = np.sqrt(np.sum([x**2, y**2]))
+    th = np.arctan2(y, x)
+
+    return r, th
+
+
+def calculate_orientation(position, goal):
+    """Returns an angle that denotes direction from position to goal in xy plane.
+
+    :param position: numpy array of shape (2+)
+    :param goal: numpy array of shape (2+)
+    :return: an angle in radians
+    """
+    return np.arctan2((goal[1] - position[1]), (goal[0] - position[0]))
+
+# def calculate_delta(A, B):
+#     """calculate distance and delta vector in body frame coordinates at point A"""
+#
+#     # initial orientation
+#     r = A[3]    # phi
+#     p = A[4]    # theta
+#     y = A[5]    # psi
+#
+#     # rotation matrix for body frame deltas
+#     ROT = np.eye(6)
+#
+#     # set the rotation using current attitude
+#     ROT[0:2, 0:2] = [
+#         [cos(p)*cos(y),    cos(r)*sin(y)+sin(r)*sin(p)*cos(y)],
+#         [-cos(p)*sin(y),   cos(r)*cos(y)-sin(r)*sin(p)*sin(y)]
+#     ]
+#
+#     # body frame rotation
+#     A_body = np.dot(A, np.linalg.inv(ROT))
+#     B_body = np.dot(B, np.linalg.inv(ROT))
+#
+#     # calculate delta vector in body reference
+#     delta = np.abs(B_body - A_body)
+#
+#     # distance between A and B in x-y plane
+#     distance = np.sqrt(delta[0]**2 + delta[1]**2)
+#
+#     return (delta, distance)
+
+
+def distance_between(A, B, spacing_dim=2):
+    """Returns a distance between two points in xy plane or xyz space.
+
+    :param A: start point numpy array shape (6)
+    :param B: end point numpy array shape (6)
+    :param spacing_dim: calculate distance in xy plane (2) or in xyz space (3)
+    :return: distance between the points
+    """
+    squared_delta = np.power((B[0:spacing_dim] - A[0:spacing_dim]), 2)
+    return np.sqrt(np.sum(squared_delta))
+
+
+def leg_distances(points, spacing_dim=2):
+    """Produces an array of the lengths of all the intermediate trajectory legs.
+
+    :param points: (n, 6) array of points
+    :param spacing_dim: calculate distance in xy plane (2) or in xyz space (3)
+    :return: an array of length (n-1) with legs' distances
+    """
+    # implements distance = sqrt(a^2, b^2, c^2)
+    squared_delta = np.power(np.diff(points[:, 0:spacing_dim], axis=0), 2)
+    return np.sqrt( np.sum(squared_delta, axis=1) )
+
+
+def cumulative_distance(points, spacing_dim=2, add_zero_row=False):
+    """Produces an array of length n=len(points) with nth entry showing the distance travelled from the start
+    to nth point on the list.
+
+    :param points: (n, 6) array of points
+    :param spacing_dim: calculate distance in xy plane (2) or in xyz space (3)
+    :param add_zero_row: if True the function returns array of length n with zero as the first element
+    :return: an array of length (n-1) with cumulative distances
+    """
+    # implements distance = sqrt(a^2, b^2)
+    squared_delta = np.power(np.diff(points[:, 0:spacing_dim], axis=0), 2)
+    distance = np.cumsum((np.sqrt(np.sum(squared_delta, axis=1))), axis=0)
+
+    distance = np.concatenate((np.zeros(1), distance))
+
+    return distance
+
+
+def remove_repeated_points(trajectory):
+    """Makes sure no two subsequent points are equal.
+
+    :param trajectory: (n, 6) array of points
+    :return: trajectory with consecutive repeated points removed
+    """
+    unique_indices = [0]
+    for i, point in enumerate(trajectory):
+        if not np.allclose(point, trajectory[unique_indices[-1]]):
+            unique_indices.append(i)
+    return trajectory[unique_indices]
+
+
+def traj_as_dict(points, **kwargs):
+    """Utility function to create a trajectory structure from a list of point and optional fields.
+
+    :param points: an N x M matrix of coordinates, representing a trajectory of N waypoints of M dofs
+    :param kwargs: optional key-value parameters that are related with a given trajectory
+    :return: the trajectory structure (backed by a dictionary)
+    """
+    trajectory = {}
+    trajectory.update(kwargs)
+    trajectory['generated'] = datetime.datetime.now().isoformat()
+    trajectory['points'] = points.tolist()
+
+    return trajectory
+
+
+def plot_trajectory(points, show_orientation=True, **kwargs):
+    """This function produces a 2D plot of the input trajectory.
+
+    The coordinates are properly swapped in order to respect the vehicle coordinates conventions, namely NED style,
+    with navigation angles commonly used for autonomous vehicles operations.
+
+    :param points:
+    :param arrow_length:
+    :return:
+    """
+    # styles
+    c_ar = kwargs.get('arrow_length', 1)
+    c_al = kwargs.get('alpha', 1)
+    c_ms = kwargs.get('ms', 6)
+    p_style = kwargs.get('p_style', 'or--')
+    p_label = kwargs.get('p_label', 'waypoints')
+
+    # check if we want to overlay on an existing plot or a new one
+    fig = kwargs.get('fig', None)
+    ax = kwargs.get('ax', None)
+
+    if fig is None or ax is None:
+        fig, ax = plt.subplots()
+
+    # plots the waypoints
+    ax.plot(points[:,1], points[:,0], p_style, alpha=c_al, ms=c_ms, label=p_label)
+
+    if show_orientation:
+        # use polar coordinates to produce vehicle orientation arrows
+        r = c_ar * np.ones(points.shape[0])     # use a fixed value for arrow length
+        th = -points[:,5] + (np.pi / 2)         # convert from navigation angles
+
+        x, y = pol2cart(r, th)
+        #bx = ax + points[:,1]
+        #by = ay + points[:,0]
+
+        # plots the orientation arrows
+        for n in xrange(points.shape[0]):
+            ax.arrow(points[n,1], points[n,0], x[n], y[n], fc='k', ec='k', head_width=0.05, head_length=0.1)
+            #ax.plot([points[n,1], bx[n]], [points[n,0], by[n]], 'b-')
+
+    # add grid and make axis equals (prevent distortions)
+    ax.grid(True)
+    ax.axis('equal')
+    ax.hold(True)
+
+    # adjust limits
+    xl = ax.get_xlim()
+    yl = ax.get_ylim()
+    xlm = (xl[1] - xl[0]) * 0.5 * 0.1
+    ylm = (yl[1] - yl[0]) * 0.5 * 0.1
+    xl = (xl[0] - xlm, xl[1] + xlm)
+    yl = (yl[0] - ylm, yl[1] + ylm)
+    ax.set_xlim(xl)
+    ax.set_ylim(yl)
+
+    ax.set_title('Trajectory Plot')
+    ax.set_xlabel('East (m)')
+    ax.set_ylabel('North (m)')
+
+    return fig, ax
+
+
+
+def interpolate_trajectory(points, spacing=10, spacing_dim=2, face_goal=False, **kwargs):
+    """Generates an np.array of intermediate points out of the ndarray of points specified in input_points.
+
+    The vehicle first rotates towards the next point. Then advances towards it in xyz. Then adjusts the final
+    orientation.
+
+    !It is possible that points are repeated.
+
+    :param position: first point of the trajectory (optional)
+    :param spacing: describes the spacing in xy or xyz between the consecutive points
+    :param spacing_dim: describes whether the above spacing is in xy (2) or xyz (3)
+    :param face_goal: set the orientation of the point to facing next point
+    :return: numpy array of shape (n+1, 6) with points from the input, intermediate points
+        and initial position point
+    """
+    # add initial position at the start of the array
+    trajectory = np.copy(points[0].reshape((1, 6)))
+
+    # for every pair of consecutive points find the interpolation
+    for i in xrange(1, len(points)):
+        interpolation = interpolate_leg(points[i-1], points[i], spacing, spacing_dim, face_goal)[1:]
+        trajectory = np.concatenate((trajectory, interpolation), axis=0)
+
+    return trajectory
+
+
+# def interpolate_leg(A, B, spacing, dimensions=2):
+#     """Generates an array of points equispaced along a line between points A and B.
+#
+#     The array includes points A and B.
+#
+#     :param A: start point numpy array shape (6)
+#     :param B: end point numpy array shape (6)
+#     :param spacing: distance between waypoints
+#     :param dimensions: how many dimensions should be considered when calculating spacing
+#     :param spacing: set the orientation to facing the end point before moving towards it
+#     :return: (n, 6) numpy array with interpolated points
+#     """
+#     # roll and pitch to zero
+#     A[3:5] = 0
+#     B[3:5] = 0
+#
+#     # necessary orientation for facing the end point
+#     distance = distance_between(A, B, dimensions)
+#
+#     steps = np.floor(distance / spacing) + 2
+#     leg = np.zeros((steps, 6))
+#
+#     # if steps_advance is 0 this doesnt generate anything
+#     leg[:, 0] = np.linspace(A[0], B[0], steps)
+#     leg[:, 1] = np.linspace(A[1], B[1], steps)
+#     leg[:, 2] = np.linspace(A[2], B[2], steps)
+#     angle_diff = wrap_angle(B[5] - A[5])
+#     leg[:, 5] = wrap_angle(np.linspace(0, angle_diff, steps) + A[5])
+#
+#     # reach the end point
+#     if not np.allclose(leg[-1], B):
+#         print leg[-1], B
+#
+#     return leg
+
+
+def interpolate_leg(A, B, spacing, dimensions=2, face_goal=False, min_distance=1):
+    """Generates an array of points equispaced along a line between points A and B with the rotation facing point B.
+
+    The array includes points A and B.
+
+    :param A: start point numpy array shape (6)
+    :param B: end point numpy array shape (6)
+    :param spacing: distance between waypoints
+    :param dimensions: how many dimensions should be considered when calculating spacing
+    :param face_goal: set the orientation of the point to facing next point
+    :param min_distance: minimum distance in order to apply the interpolation (this should be small)
+    :return: (n, 6) numpy array with interpolated points
+    """
+    # roll and pitch to zero
+    A[3:5] = 0
+    B[3:5] = 0
+
+    # necessary orientation for facing the end point
+    distance = distance_between(A, B, dimensions)
+
+    if distance > min_distance:
+        steps_advance = np.ceil(distance / spacing) + 1
+        face_angle = calculate_orientation(A, B)
+    else:
+        face_angle = B[5]
+        steps_advance = 0
+
+    # allocate the memory: 1 intial point, steps_advance points for advancing and facing, 1 point for orienting
+    leg = np.zeros(((steps_advance + 2), 6))
+    leg[0] = A
+
+    # if steps_advance is 0 this doesnt generate anything
+    leg[1:-1, 0] = np.linspace(A[0], B[0], steps_advance)
+    leg[1:-1, 1] = np.linspace(A[1], B[1], steps_advance)
+    leg[1:-1, 2] = np.linspace(A[2], B[2], steps_advance)
+
+    if face_goal:
+        leg[1:-1, 5] = face_angle
+    else:
+        angle_diff = wrap_angle(B[5] - A[5])
+        leg[1:-1, 5] = wrap_angle(np.linspace(0, angle_diff, steps_advance) + A[5])
+
+    # reach the end point
+    leg[-1] = B
+
+    return leg
+
+
+def interpolate_arc(A, B, radius, spacing, right=True):
+    """Produces an array of points that lie on an arc between points A and B. If the radius asked is too small to
+    generate a trajectory the function will return False, None.
+
+    For a given A, B and radius there are 4 arcs that connect the points. Two are shorter or equal to half of
+    the circle. The algorithm will generate one of these two depending on the value of right.For right==True path
+    to the right (looking from A to B) will be generated.
+
+    At each of the intermediate points the the orientation is parallel to the tangent of the arc at that point.
+    The trajectory includes A and B.
+
+    !It is possible that some points are repeated (start and end).
+
+    :param A: start point numpy array shape (6)
+    :param B: end point numpy array shape (6)
+    :param radius: radius of the arc
+    :param spacing: maximum distance between the points
+    :param right: select which path should be generated
+    :return: boolean describing whether generation failed or succeeded, (n, 6) numpy array with points
+    """
+    if right is True:
+        sign = 1
+    else:
+        sign = -1
+
+    # only xy plane is considered in the generation of the arc
+    mid_point = (A[0:2] + B[0:2]) / 2
+    dir_vector = mid_point - A[0:2]
+    length = np.linalg.norm(dir_vector)
+
+    if length == 0:
+        # points are overlapping
+        return np.array([A, B])
+    elif length > radius:
+        raise ValueError('Radius specified too small')
+        # cannot produce the trajectory
+
+    unit_dir_vector = dir_vector / length
+    rotation_matrix = -np.array([
+        [0, -1],
+        [1,  0]
+    ])
+    # unit vector from the midpoint between A and B to centre of the circle
+    rot_unit_vector = np.dot(rotation_matrix, unit_dir_vector)
+    # find length necessary to the to the centre
+    distance_to_centre = np.sqrt(radius**2 - length**2)
+    # there are two solutions, one can go in the positive or negative direction along the vector from the midpoint
+    centre = mid_point + sign * distance_to_centre * rot_unit_vector
+
+    # A and B referred to the centre of the circle
+    A_ref_centre = A[0:2] - centre
+    B_ref_centre = B[0:2] - centre
+
+    # A and B in polar representation
+    A_r, A_th = cart2pol(A_ref_centre[0], A_ref_centre[1])
+    B_r, B_th = cart2pol(B_ref_centre[0], B_ref_centre[1])
+
+    # arc and angle of the arc to travel
+    arc_length = np.abs(radius * (B_th - A_th))
+
+    # this difference is necessary so that the interpolation is in the correct direction
+    angle_diff = wrap_angle(B_th - A_th)
+
+    # number of steps in the interpolation
+    steps = np.floor(arc_length/spacing) + 2
+
+    # initialise the array, number of steps + A and B
+    trajectory = np.zeros((steps+2, 6))
+    trajectory[0] = A
+    trajectory[-1] = B
+
+    # generate equispaced angles on the circle to travel to starting from A_th
+    angles = wrap_angle(np.linspace(0, angle_diff, steps) + A_th)
+
+    # calculate xy coordinates corresponding to the points on the circle at a given angle
+    xy_ref_centre = np.array(pol2cart(radius, angles)).T
+    trajectory[1:-1, 0:2] = xy_ref_centre + centre
+
+    # interpolate z
+    trajectory[1:-1, 3] = np.linspace(A[2], B[2], steps)
+
+    # roll, pitch to 0
+    trajectory[1:-1, 3:5] = 0
+
+    # adjust the orientation
+    #   default orientation is always tangent to the arc thus +-90 degrees to the angle pointing to a given waypoint
+    #   (the angle between vector from (x, y) to the centre of the circle and 0 angle)
+    trajectory[1:-1, 5] = angles + (-sign * np.pi/2)
+
+    return trajectory
+
+
+def interpolate_sector(position, radius=5, sector=90, spacing=1):
+    # find center or the arc
+    center = np.zeros(6)
+    center[0] = position[0] + radius * np.sin(-position[5] + np.pi/2)
+    center[1] = position[1] + radius * np.cos(-position[5] + np.pi/2)
+
+    steps = np.deg2rad(sector) / (spacing / radius)
+    steps = np.maximum(steps, 18)
+
+    th_start = -calculate_orientation(center, position) + np.pi/2
+    th_end = th_start + np.deg2rad(sector)
+    theta = np.linspace(th_start, th_end, steps)
+
+    x, y = pol2cart(radius, theta)
+
+    points = np.zeros((steps, 6))
+    points[:, 0] = y + center[0]
+    points[:, 1] = x + center[1]
+    points[:, 2] = position[2]
+    points[:, 5] = wrap_angle((-theta + np.pi/2) - np.pi)
+
+    return points
+
+
+
+def format_bezier_input(start, p1, p2, end, degrees=False):
+    """Generates input points for interpolate_bezier functions out of user-friendly description of the points.
+
+    :param start: standard waypoint, numpy array of shape (6)
+    :param p1: steepness of the curve and orientation at the start point - (r, th)
+    :param p2: steepness of the curve and orientation at the end point - (r, th)
+    :param end: standard waypoint, numpy array of shape (6)
+    :param degrees: True for input in degrees
+    :return: array (4, 6) of cartesian waypoints that can be passed to bezier interpolation
+    """
+    P1 = p1.astype(float)
+    P2 = p2.astype(float)
+    if degrees is True:
+        P1[1] = np.deg2rad(P1[1])
+        P2[1] = np.deg2rad(P2[1])
+
+    P = np.zeros((4, 6))
+    P[0] = start
+    P[1, 0:2] = start[0:2] + pol2cart(*P1)
+    P[2, 0:2] = end[0:2] - pol2cart(*P2)
+    P[3] = end
+    return P
+
+
+def interpolate_bezier(points, steps=100):
+    """Generates an array of waypoints which lie on a 2D Bezier curve described by n (x, y) points. The trajectory is
+    guaranteed to include the start and end points though only on (x, y, z) axes.
+
+    The curve generated is of the nth degree, where n = len(points) - 1
+
+    1st point is the start point.
+    2nd point indicates the orientation at the start point.
+    (n-1)th point indicates the orientation at the end point.
+    nth point is the end point.
+
+    For information about Bezier curve look at:
+    - http://www.cs.mtu.edu/~shene/COURSES/cs3621/NOTES/spline/Bezier/bezier-der.html
+
+    :param points: (n, 2+) array of waypoints
+    :return: trajectory with interpolated points
+    """
+    n = len(points) - 1
+    t = np.linspace(0, 1, steps).reshape((steps, 1))
+    B = np.zeros((steps, 6))
+
+    # could be vectorised:
+    # r = range(0, n+1)
+    # coefs = sci.comb(n, r)
+    # t_1_pow = np.power(np.tile(t-1, (1, 6)), np.tile(r, (steps, 1)))
+    # t_pow = np.power(np.tile(t, (1, 6)), np.tile(r, (steps, 1)))
+    # etc
+    for i in xrange(n+1):
+        B[:, 0:2] += sci.comb(n, i) * np.dot(((1-t)**(n-i) * t**i).reshape(100, 1), points[i, 0:2].reshape((1, 2)))
+        # coef = sci.comb(n, i)
+        # B[:, 0] += coef * (1-t)**(n-i) * t**i * points[i, 0]
+        # B[:, 1] += coef * (1-t)**(n-i) * t**i * points[i, 1]
+    B[:, 2] = np.linspace(points[0, 2], points[-1, 2], steps)
+    B[:, 3:5] = 0
+    der_x = np.diff(B[:, 0])
+    der_y = np.diff(B[:, 1])
+    B[1:, 5] = np.arctan2(der_y, der_x)
+    B[0] = points[0]
+    return B
+
+
+def interpolate_bezier_cubic(points, steps=100):
+    """Equivalent to interpolate_bezier with 4 input points (degree 3)
+
+    :param points: (n, 2+) array of waypoints
+    :return: trajectory with interpolated points
+    """
+    P0, P1, P2, P3 = points
+    t = np.linspace(0, 1, steps)
+    B = np.zeros((steps, 6))
+
+    B[:, 0] = (1-t)**3 * P0[0] + 3*(1-t)**2 * t * P1[0] + 3*(1-t)*t**2 * P2[0] + t**3 * P3[0]
+    B[:, 1] = (1-t)**3 * P0[1] + 3*(1-t)**2 * t * P1[1] + 3*(1-t)*t**2 * P2[1] + t**3 * P3[1]
+    B[:, 2] = np.linspace(P0[2], P3[2], steps)
+    B[:, 3:5] = 0
+
+    # calculate the xy slope at each point of the curve
+    der_x = np.diff(B[:, 0])
+    der_y = np.diff(B[:, 1])
+    B[1:, 5] = np.arctan2(der_y, der_x)
+
+    return B
+
+
+
+############### DEMO ###############
+def demo_bezier(points=None):
+    """Demonstrates the performance of interpolate_bezier function. Displays input points, interpolated
+    trajectory and orientation at each point.
+
+    :param points:  Example input points:
+                        points = np.array([
+                            [0, 0, 0, 0, 0, 0],
+                            [5, -15, 0, 0, 0, 0],
+                            [-5, 20, 0, 0, 0, 0],
+                            [0, 10, 0, 0, 0, 0]
+                        ])
+    :return: None
+    """
+    if points is None:
+        points = format_bezier_input(
+            start=np.array([0, 0, 0, 0, 0, 0]),
+            p1=np.array([15, 50]),
+            p2=np.array([15, 50]),
+            end=np.array([0, 10, 0, 0, 0, 0]),
+            degrees=True
+        )
+
+    traj = interpolate_bezier(points)
+
+    fig, ax = plt.subplots()
+    ax.plot(aspect='equal')
+    ax.plot(points[:, 1], points[:, 0], 'or')
+    ax.plot(traj[:, 1], traj[:, 0], 'g')
+
+    r = np.ones(traj.shape[0])     # use a fixed value for arrow length
+    th = -traj[:, 5] + (np.pi / 2)                 # convert from navigation angles
+    x, y = pol2cart(r, th)
+
+    for n in xrange(traj.shape[0]):
+        ax.arrow(traj[n,1], traj[n,0], x[n], y[n], fc="k", ec="k", head_width=0.05, head_length=0.1)
+
+    plt.axis([-15, 15, -20, 10])
+
+    ax.grid()
+    plt.show()
+
+
+if __name__ == '__main__':
+    # test trajectories
+    demo_bezier()
+    origin = np.array([0, 0, 0, 0, 0, 0])
+
+    # inspection scenario
+    ips = np.array([
+        [10, 10, 0, 0, 0, np.deg2rad(45)],
+        [-5, 0, 0, 0, 0, np.deg2rad(-135)],
+        [10, -5, 0, 0, 0, np.deg2rad(-45)],
+    ])
+
+    # inspection trajectory
+    trajectory = np.zeros((1, 6))
+
+    # set initial point
+    trajectory[0, :] = origin
+    bz_step = 6                     # meters
+
+    for n in xrange(ips.shape[0]):
+        p0 = trajectory[-1]
+        p3 = ips[n]
+        p1 = np.zeros_like(p0)
+        p2 = np.zeros_like(p0)
+
+        alpha = (-p0[5] + np.pi/2)
+        p1[0] = bz_step * np.sin(alpha) + p0[0]
+        p1[1] = bz_step * np.cos(alpha) + p0[1]
+
+        # print('P0[5]: %s' % np.rad2deg(p0[5]))
+        # print('ALPHA: %s' % np.rad2deg(alpha))
+        #
+        # print('P0: %s' % p0)
+        # print('P1: %s' % p1)
+
+        los = calculate_orientation(p0, p3)
+        alpha = (-los + np.pi/2)
+
+        p2[0] = -bz_step * np.sin(alpha) + p3[0]
+        p2[1] = -bz_step * np.cos(alpha) + p3[1]
+
+        #print('P2: %s' % p2)
+        #print('P3: %s' % p3)
+
+        points = interpolate_bezier_cubic((p0, p1, p2, p3), steps=20)
+        trajectory = np.concatenate((trajectory, points), axis=0)
+
+        points = interpolate_sector(ips[n], radius=8, sector=90, spacing=2)
+        trajectory = np.concatenate((trajectory, points), axis=0)
+
+        reverse = np.zeros((1, 6))
+        reverse[0, 0:6] = trajectory[-1]
+        reverse[0, 5] = wrap_angle(reverse[0, 5] - np.pi)
+        trajectory = np.concatenate((trajectory, reverse), axis=0)
+
+    # show final
+    plot_trajectory(trajectory)
+    plt.show()
+
+    # print trajectory
+    import yaml
+    print(yaml.dump(traj_as_dict(trajectory)))
