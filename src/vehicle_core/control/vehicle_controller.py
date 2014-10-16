@@ -3,6 +3,7 @@
 from __future__ import division
 
 import numpy as np
+import scipy as sc
 from numpy import cos, sin, tan
 
 from vehicle_core.model import vehicle_model as vm
@@ -251,7 +252,7 @@ class CascadedController(VehicleController):
 
         # model-free pid cascaded controller
         #   first pid (outer loop on position)
-        self.err_pos = self.pos - self.des_pos
+        self.err_pos = np.abs(self.pos - self.des_pos)
         self.err_pos = np.dot( self.J_inv, self.err_pos.reshape((6,1)) ).flatten()
 
         # wrap angles and limit pitch
@@ -415,6 +416,9 @@ class AutoTuningController(CascadedController):
         ])
 
 
+    def gain (self, x, x_ref, adapt_coef):
+        return  adapt_coef * (x**2 + 2 * x * x_ref + 2* x_ref)
+
     def update(self, position, velocity):
         # store nav updates
         self.pos = position
@@ -446,14 +450,20 @@ class AutoTuningController(CascadedController):
         self.err_pos_prev = self.err_pos
 
         # adaptive tuning of position gains
-        self.pos_Kp = np.abs( np.clip(self.adapt_coeff_pos * 2 * self.err_pos, -self.adapt_limit_pos[0], self.adapt_limit_pos[0]) )
-        self.pos_Ki = np.abs( np.clip(self.adapt_coeff_pos * self.err_pos * self.err_pos_int, -self.adapt_limit_pos[1], self.adapt_limit_pos[1]) )
-        self.pos_Kd = np.abs( np.clip(self.adapt_coeff_pos * self.err_pos * self.err_pos_der, -self.adapt_limit_pos[2], self.adapt_limit_pos[2]) )
+
+        self.pos_Kp += self.adapt_coeff_pos * self.err_pos * np.abs(self.err_pos)
+        self.pos_Ki += self.adapt_coeff_pos * self.err_pos * self.err_pos_int
+        self.pos_Kd += self.adapt_coeff_pos * self.err_pos * self.err_pos_der
+
+        self.pos_Kp = np.clip(self.pos_Kp, -self.adapt_limit_pos[0], self.adapt_limit_pos[0])
+        self.pos_Ki = np.clip(self.pos_Ki, -self.adapt_limit_pos[1], self.adapt_limit_pos[1])
+        self.pos_Kd = np.clip(self.pos_Kd, -self.adapt_limit_pos[2], self.adapt_limit_pos[2])
+
 
         # update new gains with forgetting factor
-        self.pos_Kp = (1 - self.alpha) * self.pos_Kp + self.alpha * self.pos_Kp_prev
-        self.pos_Ki = (1 - self.alpha) * self.pos_Ki + self.alpha * self.pos_Ki_prev
-        self.pos_Kd = (1 - self.alpha) * self.pos_Kd + self.alpha * self.pos_Kd_prev
+        # self.pos_Kp = (1 - self.alpha) * self.pos_Kp + self.alpha * self.pos_Kp_prev
+        # self.pos_Ki = (1 - self.alpha) * self.pos_Ki + self.alpha * self.pos_Ki_prev
+        # self.pos_Kd = (1 - self.alpha) * self.pos_Kd + self.alpha * self.pos_Kd_prev
 
         # store gains
         self.pos_Kp_prev = self.pos_Kp
@@ -462,7 +472,7 @@ class AutoTuningController(CascadedController):
 
 
         # PI controller limited (outer loop on position) - velocity
-        self.req_vel = (-self.pos_Kp * self.err_pos) + (-self.pos_Ki * self.err_pos_int) + (-self.pos_Kd * self.err_pos_der)
+        self.req_vel = (-np.abs(self.pos_Kp) * self.err_pos) + (-np.abs(self.pos_Ki) * self.err_pos_int) + (-np.abs(self.pos_Kd) * self.err_pos_der)
 
 
         # if running in velocity mode ignore the first pid
@@ -480,14 +490,22 @@ class AutoTuningController(CascadedController):
         self.err_vel_prev = self.err_vel
 
         # adaptive tuning of velocity gains
-        self.vel_Kp = np.abs( np.clip(self.adapt_coeff_vel * 2 * self.err_vel, -self.adapt_limit_vel[0], self.adapt_limit_vel[0]) )
-        self.vel_Ki = np.abs( np.clip(self.adapt_coeff_vel * self.err_vel * self.err_vel_int, -self.adapt_limit_vel[1], self.adapt_limit_vel[1]) )
-        self.vel_Kd = np.abs( np.clip(self.adapt_coeff_vel * self.err_vel * self.err_vel_der, -self.adapt_limit_vel[2], self.adapt_limit_vel[2]) )
+        self.vel_Kp += self.adapt_coeff_vel * self.err_vel * np.abs(self.err_vel)
+        self.vel_Ki += self.adapt_coeff_vel * self.err_vel * self.err_vel_int
+        self.vel_Kd += self.adapt_coeff_vel * self.err_vel * self.err_vel_der
+
+        self.vel_Kp = np.clip(self.vel_Kp, -self.adapt_limit_vel[0], self.adapt_limit_vel[0])
+        self.vel_Ki = np.clip(self.vel_Ki, -self.adapt_limit_vel[1], self.adapt_limit_vel[1])
+        self.vel_Kd = np.clip(self.vel_Kd, -self.adapt_limit_vel[2], self.adapt_limit_vel[2])
+
+
 
         # update new gains with forgetting factor
-        self.vel_Kp = (1 - self.alpha) * self.vel_Kp + self.alpha * self.vel_Kp_prev
-        self.vel_Ki = (1 - self.alpha) * self.vel_Ki + self.alpha * self.vel_Ki_prev
-        self.vel_Kd = (1 - self.alpha) * self.vel_Kd + self.alpha * self.vel_Kd_prev
+        # self.vel_Kp = (1 - self.alpha) * self.vel_Kp + self.alpha * self.vel_Kp_prev
+        # self.vel_Ki = (1 - self.alpha) * self.vel_Ki + self.alpha * self.vel_Ki_prev
+        # self.vel_Kd = (1 - self.alpha) * self.vel_Kd + self.alpha * self.vel_Kd_prev
+
+
 
         # store gains
         self.vel_Kp_prev = self.vel_Kp
@@ -497,7 +515,7 @@ class AutoTuningController(CascadedController):
 
 
         # PI controller velocity
-        self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Ki * self.err_vel_int) + (-self.vel_Kd * self.err_vel_der)
+        self.tau_ctrl = (-np.abs(self.vel_Kp) * self.err_vel) + (-np.abs(self.vel_Ki) * self.err_vel_int) + (-np.abs(self.vel_Kd) * self.err_vel_der)
 
 
         # trimming forces: add offsets from config (if any)
