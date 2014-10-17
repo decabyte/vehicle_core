@@ -14,6 +14,41 @@ Before attempting any modification to this repo please make sure thar:
   
 Initially this repo is providing packages using the rosbuild build system until the OSL vehicles are migrated to an upgraded version of the ROS. Later the rosbuild support is going to be dropped and the master branch will offer a catkinized package format. The software development follows a couple of principles that have been proven useful during the early development of this project like [Semver][semver], for semantic versioning of releases and tags, [KISS][kiss], as a general guideline to prevent the commit of _huge_ files and _beast_ modules, and, finally, [TDD][tdd], as a principle for testing your code if you want to rely on a more pragmatic approach.
 
+Requirements
+------------
+  - ROS HYDRO/INDIGO
+  - Joystick
+  ```
+    $ sudo apt-get install ros-hydro-joystick-drivers
+  ```
+
+Run
+---
+1) Run nav simulator
+  ```
+    $ roslaunch vehicle_core nav_sim.launch
+  ```
+
+2) Run vehicle controller
+  ```
+    $ roslaunch vehicle_core pilot_sim.launch
+  ```
+   or
+  ```
+    $ roslaunch vehicle_core auto_sim.launch
+  ```
+
+3) Run visualization
+  ```
+    $ roslaunch vehicle_core nav_visual.launch
+  ```
+
+Extra: For trajectory tracking, enable the path
+  ```
+    roslaunch vehicle_core path_controller.launch
+    vehicle_core/scripts/pp_start.sh
+    vehicle_core/scripts/pp_lines_path.sh
+  ```
 
 Credits
 -------
