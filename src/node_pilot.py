@@ -9,6 +9,7 @@ np.set_printoptions(precision=3, suppress=True)
 
 from vehicle_core.config import thrusters_config as tc
 from vehicle_core.model import thrusters_model as tm
+from vehicle_core.model import dynamic_model as dm
 from vehicle_core.control import thrust_allocation as ta
 from vehicle_core.control import vehicle_controller as vc
 
@@ -19,7 +20,7 @@ roslib.load_manifest('vehicle_core')
 from auv_msgs.msg import NavSts
 from diagnostic_msgs.msg import KeyValue
 
-from vehicle_interface.msg import ThrusterCommand, FloatArrayStamped, PilotStatus, PilotRequest
+from vehicle_interface.msg import ThrusterCommand, PilotStatus, PilotRequest, Vector6Stamped, FloatArrayStamped
 from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatService, FloatServiceResponse
 
 
@@ -141,8 +142,9 @@ class VehiclePilot(object):
 
         # ros interface
         self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.handle_nav, tcp_nodelay=True, queue_size=1)
-        self.sub_user = rospy.Subscriber(TOPIC_USER, FloatArrayStamped, self.handle_user, tcp_nodelay=True, queue_size=1)
-        self.pub_status = rospy.Publisher(TOPIC_STATUS, PilotStatus, tcp_nodelay=True, queue_size=3)
+        self.sub_user = rospy.Subscriber(TOPIC_USER, Vector6Stamped, self.handle_user, tcp_nodelay=True, queue_size=1)
+        self.pub_status = rospy.Publisher(TOPIC_STATUS, PilotStatus, tcp_nodelay=True, queue_size=1)
+        self.pub_forces = rospy.Publisher(TOPIC_FORCES, Vector6Stamped, tcp_nodelay=True, queue_size=1)
         self.pub_thr = rospy.Publisher(self.topic_output, ThrusterCommand, tcp_nodelay=True, queue_size=3)
 
         # pilot requests
@@ -304,35 +306,16 @@ class VehiclePilot(object):
         # trigger only if adaptive correction is enabled
         # and a fault condition is detected (threshold crossing)
         if self.fault_control:
+            indexes = np.where(self.diagnostic_metric > THRESH_METRIC)[0]
 
-            # TODO: this if clause is not needed (consider removing it)
-            if np.any(self.diagnostic_metric > THRESH_METRIC):
-                indexes = np.where(self.diagnostic_metric > THRESH_METRIC)[0]
+            # update the efficiency and costs
+            self.thruster_efficiency[indexes] -= W_ADPT_RATE                        # reduce thruster efficiency
+            self.thruster_efficiency = np.maximum(self.thruster_efficiency, 0)      # prevent negative values
 
-                # update the efficiency and costs
-                self.thruster_efficiency[indexes] -= W_ADPT_RATE                        # reduce thruster efficiency
-                self.thruster_efficiency = np.maximum(self.thruster_efficiency, 0)      # prevent negative values
-
-                # check if is better to exclude inefficient thrusters
-                if np.any(self.thruster_efficiency <= W_THRS):
-                    idx_disable = np.where(self.thruster_efficiency <= W_THRS)[0]
-                    self.thruster_efficiency[idx_disable] = 0
-
-
-            # # update the maximum allowed force and clip within 0% and 100% of vehicle reference design
-            # self.fault_MAX_U = ta.evaluate_max_force(self.local_inv_TAM)
-            # self.fault_MAX_U = np.clip(self.fault_MAX_U, 0, tc.MAX_U)
-            #
-            # # estimate the new allowed speeds
-            # self.fault_MAX_SPEED = MAX_SPEED * np.sqrt(self.fault_MAX_U / tc.MAX_U)         # was * 0.5
-            # self.fault_MAX_SPEED[ np.where(np.isnan(self.fault_MAX_SPEED)) ] = 0
-            # self.fault_MAX_SPEED[ np.where(np.isinf(self.fault_MAX_SPEED)) ] = 0
-            #
-            # # if speed reduction is enabled
-            # #   - scale down the maximum allowed speeds
-            # #   - avoid division between zeros and by zero
-            # if self.fault_speeds:
-            #     self.lim_vel_ctrl = self.fault_MAX_SPEED
+            # check if is better to exclude inefficient thrusters
+            if np.any(self.thruster_efficiency <= W_THRS):
+                idx_disable = np.where(self.thruster_efficiency <= W_THRS)[0]
+                self.thruster_efficiency[idx_disable] = 0
 
 
 
@@ -396,42 +379,6 @@ class VehiclePilot(object):
 
 
 
-    def compute_jacobian(self, phi, theta, psi):
-        """This functions computes the jacobian matrix used for body-frame to earth-frame conversions.
-
-        :param phi: pitch angle (k)
-        :param theta: roll angle (m)
-        :param psi: yaw angle (n)
-        :return: J matrix (6x6)
-        """
-
-        # init jacobian
-        J = np.zeros((6,6))
-
-        # jacobian one
-        J[0:3,0:3] = np.array([
-            [np.cos(theta) * np.cos(psi),
-             np.cos(psi) * np.sin(theta) * np.sin(phi) - np.sin(psi) * np.cos(phi),
-             np.sin(psi) * np.sin(phi) + np.cos(psi) * np.cos(phi) * np.sin(theta)],
-
-            [np.cos(theta) * np.sin(psi),
-             np.cos(psi) * np.cos(phi) + np.sin(phi) * np.sin(theta) * np.sin(psi),
-             np.sin(psi) * np.sin(theta) * np.cos(phi) - np.cos(psi) * np.sin(phi)],
-
-            [-np.sin(theta), np.cos(theta) * np.sin(phi), np.cos(theta) * np.cos(phi)]
-        ])
-
-        # jacobian two
-        J[3:6,3:6] = np.array([
-            [1.0,   np.sin(phi)*np.tan(theta),    np.cos(phi)*np.tan(theta)],
-            [0.0,   np.cos(phi),                  -np.sin(phi)],
-            [0.0,   np.sin(phi)/np.cos(theta),    np.cos(phi)/np.cos(theta)]
-        ])
-
-        return J
-
-
-
     def handle_pos_req(self, data):
         try:
             # global referenced request
@@ -460,7 +407,7 @@ class VehiclePilot(object):
     def handle_body_req(self, data):
         try:
             # body referenced request
-            J = self.compute_jacobian(0, 0, self.pos[5])
+            J = dm.compute_jacobian(0, 0, self.pos[5])
 
             body_request = np.dot(J, np.array(data.position[0:6]))
 
@@ -615,6 +562,12 @@ class VehiclePilot(object):
         ttc.header.stamp = rospy.Time.now()
         ttc.throttle = self.throttle.flatten().tolist()
         self.pub_thr.publish(ttc)
+
+        # send force feedback
+        pf = Vector6Stamped()
+        pf.header.stamp = rospy.Time.now()
+        pf.values = self.tau_total.tolist()
+        self.pub_forces.publish(pf)
 
 
     def print_info(self, event=None):

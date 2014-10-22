@@ -12,7 +12,7 @@ import rospy
 import roslib
 roslib.load_manifest('vehicle_core')
 
-from vehicle_interface.msg import ThrusterCommand, ThrusterFeedback, FloatArrayStamped
+from vehicle_interface.msg import ThrusterCommand, ThrusterFeedback, Vector6Stamped
 
 # topics
 TOPIC_MODEL = 'thrusters/model'
@@ -50,7 +50,7 @@ class SimulatedThrusters(object):
         # subscribers
         self.sub_cmd = rospy.Subscriber(topic_input, ThrusterCommand, self.handle_commands, tcp_nodelay=True, queue_size=3)
         self.pub_feedback = rospy.Publisher(topic_feedback, ThrusterFeedback, tcp_nodelay=True, queue_size=3)
-        self.pub_forces = rospy.Publisher(topic_forces, FloatArrayStamped, tcp_nodelay=True, queue_size=3)
+        self.pub_forces = rospy.Publisher(topic_forces, Vector6Stamped, tcp_nodelay=True, queue_size=3)
 
 
     def handle_commands(self, data):
@@ -85,15 +85,15 @@ class SimulatedThrusters(object):
         self.forces_predicted = self.forces_predicted.reshape(6, 1)
         self.forces = np.dot(tc.TAM, self.forces_predicted)
 
-        # send body forces
-        msg = FloatArrayStamped()
-        msg.header.stamp = rospy.Time.now()
-        msg.values = self.forces
-        self.pub_forces.publish(msg)
-
         # zero the array in case the messages are not received
         self.v_requested = np.roll(self.v_requested, -1, axis=1)
         self.v_requested[:, -1] = np.zeros(6)
+
+        # send body forces
+        msg = Vector6Stamped()
+        msg.header.stamp = rospy.Time.now()
+        msg.values = self.forces
+        self.pub_forces.publish(msg)
 
 
 

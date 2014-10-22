@@ -13,7 +13,7 @@ import vehicle_core.model.thrusters_model as tm
 import vehicle_core.config.thrusters_config as tc
 
 from sensor_msgs.msg import Joy
-from vehicle_interface.msg import ThrusterCommand, FloatArrayStamped, PilotRequest
+from vehicle_interface.msg import ThrusterCommand, Vector6Stamped, PilotRequest
 from vehicle_interface.srv import BooleanService
 
 
@@ -85,7 +85,7 @@ class JoystickInterface(object):
         # ros interface
         self.sub_joy = rospy.Subscriber(self.input_topic, Joy, self.handle_joystick, tcp_nodelay=True, queue_size=1)
         self.pub_thr = rospy.Publisher(TOPIC_CMD, ThrusterCommand, tcp_nodelay=True, queue_size=1)
-        self.pub_for = rospy.Publisher(TOPIC_FORCES, FloatArrayStamped, tcp_nodelay=True, queue_size=1)
+        self.pub_for = rospy.Publisher(TOPIC_FORCES, Vector6Stamped, tcp_nodelay=True, queue_size=1)
         self.pub_stay = rospy.Publisher(TOPIC_STAY, PilotRequest, tcp_nodelay=True, queue_size=1)
 
         # services
@@ -197,7 +197,7 @@ class JoystickInterface(object):
         # FORCES command mode
         #   send forces to the pilot
         if self.mode == MODE_FORCE:
-            uf = FloatArrayStamped()
+            uf = Vector6Stamped()
             uf.header.stamp = rospy.Time.now()
             uf.values = forces.flatten().tolist()
             self.pub_for.publish(uf)

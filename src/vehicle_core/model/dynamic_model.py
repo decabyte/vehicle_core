@@ -3,6 +3,54 @@
 
 import numpy as np
 
+
+# pythran export compute_jacobian(float, float, float)
+def compute_jacobian(phi, theta, psi):
+    """This functions computes the jacobian matrix used for converting body-frame to earth-frame coordinates.
+
+    :param phi: pitch angle (k)
+    :param theta: roll angle (m)
+    :param psi: yaw angle (n)
+    :return: J matrix (6x6)
+    """
+
+    return update_jacobian(np.zeros((6,6)), phi, theta, psi)
+
+
+# pythran export update_jacobian(float[], float, float, float)
+def update_jacobian(J, phi, theta, psi):
+    """This functions computes the jacobian matrix used for converting body-frame to earth-frame coordinates.
+
+    :param J: jacobian matrix (6x6)
+    :param phi: pitch angle (k)
+    :param theta: roll angle (m)
+    :param psi: yaw angle (n)
+    :return: J matrix (6x6)
+    """
+
+    # jacobian one
+    J[0:3,0:3] = np.array([
+        [np.cos(theta) * np.cos(psi),
+         np.cos(psi) * np.sin(theta) * np.sin(phi) - np.sin(psi) * np.cos(phi),
+         np.sin(psi) * np.sin(phi) + np.cos(psi) * np.cos(phi) * np.sin(theta)],
+
+        [np.cos(theta) * np.sin(psi),
+         np.cos(psi) * np.cos(phi) + np.sin(phi) * np.sin(theta) * np.sin(psi),
+         np.sin(psi) * np.sin(theta) * np.cos(phi) - np.cos(psi) * np.sin(phi)],
+
+        [-np.sin(theta), np.cos(theta) * np.sin(phi), np.cos(theta) * np.cos(phi)]
+    ])
+
+    # jacobian two
+    J[3:6,3:6] = np.array([
+        [1.0,   np.sin(phi)*np.tan(theta),    np.cos(phi)*np.tan(theta)],
+        [0.0,   np.cos(phi),                  -np.sin(phi)],
+        [0.0,   np.sin(phi)/np.cos(theta),    np.cos(phi)/np.cos(theta)]
+    ])
+
+    return J
+
+
 #pythran export calc_coriolis(float[], float, float[], float[], float[])
 def calc_coriolis(vel, mass, cog, inertia, added_terms):
     # unpack arguments (following Fossen's conventions)

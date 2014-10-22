@@ -3,10 +3,10 @@
 from __future__ import division
 
 import numpy as np
-import scipy as sc
-from numpy import cos, sin, tan
+np.set_printoptions(precision=3, suppress=True)
 
 from vehicle_core.model import vehicle_model as vm
+from vehicle_core.model import dynamic_model as dm
 
 
 np.set_printoptions(precision=3, suppress=True)
@@ -216,43 +216,18 @@ class CascadedController(VehicleController):
         ])
 
 
-    # TODO: move jacobian to dynamic_model and use the optimized version (inversion needs to be done on the python side)
-    def update_jacobian(self, attitude):
-        # unpack attitude angles
-        phi, theta, psi = attitude
-
-        # jacobian one
-        self.J[0:3,0:3] = np.array([
-            [cos(theta) * cos(psi),
-             cos(psi) * sin(theta) * sin(phi) - sin(psi) * cos(phi),
-             sin(psi) * sin(phi) + cos(psi) * cos(phi) * sin(theta)],
-            [cos(theta) * sin(psi),
-             cos(psi) * cos(phi) + sin(phi) * sin(theta) * sin(psi),
-             sin(psi) * sin(theta) * cos(phi) - cos(psi) * sin(phi)],
-            [-sin(theta), cos(theta) * sin(phi), cos(theta) * cos(phi)]
-        ])
-
-        # jacobian two
-        self.J[3:6,3:6] = np.array([
-            [1.0,   sin(phi)*tan(theta),    cos(phi)*tan(theta)],
-            [0.0,   cos(phi),               -sin(phi)],
-            [0.0,   sin(phi)/cos(theta),    cos(phi)/cos(theta)]
-        ])
-
-        # calculate the inverse jacobian
-        self.J_inv = np.linalg.pinv(self.J)
-
-
     def update(self, position, velocity):
         # store nav updates
         self.pos = position
         self.vel = velocity
 
-        self.update_jacobian(self.pos[3:6])
+        # update jacobians
+        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
+        self.J_inv = np.linalg.inv(self.J)
 
         # model-free pid cascaded controller
         #   first pid (outer loop on position)
-        self.err_pos = np.abs(self.pos - self.des_pos)
+        self.err_pos = self.pos - self.des_pos
         self.err_pos = np.dot( self.J_inv, self.err_pos.reshape((6,1)) ).flatten()
 
         # wrap angles and limit pitch
@@ -416,15 +391,14 @@ class AutoTuningController(CascadedController):
         ])
 
 
-    def gain (self, x, x_ref, adapt_coef):
-        return  adapt_coef * (x**2 + 2 * x * x_ref + 2* x_ref)
-
     def update(self, position, velocity):
         # store nav updates
         self.pos = position
         self.vel = velocity
 
-        self.update_jacobian(self.pos[3:6])
+        # update jacobians
+        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
+        self.J_inv = np.linalg.inv(self.J)
 
         # PI position controller
         self.err_pos = self.pos - self.des_pos
@@ -451,7 +425,6 @@ class AutoTuningController(CascadedController):
         self.pos_Kp = np.clip(self.pos_Kp, -self.adapt_limit_pos[0], self.adapt_limit_pos[0])
         self.pos_Ki = np.clip(self.pos_Ki, -self.adapt_limit_pos[1], self.adapt_limit_pos[1])
         self.pos_Kd = np.clip(self.pos_Kd, -self.adapt_limit_pos[2], self.adapt_limit_pos[2])
-
 
         # store gains
         self.pos_Kp_prev = self.pos_Kp
@@ -485,7 +458,6 @@ class AutoTuningController(CascadedController):
         self.vel_Kp = np.clip(self.vel_Kp, -self.adapt_limit_vel[0], self.adapt_limit_vel[0])
         self.vel_Ki = np.clip(self.vel_Ki, -self.adapt_limit_vel[1], self.adapt_limit_vel[1])
         self.vel_Kd = np.clip(self.vel_Kd, -self.adapt_limit_vel[2], self.adapt_limit_vel[2])
-
 
         # store gains
         self.vel_Kp_prev = self.vel_Kp

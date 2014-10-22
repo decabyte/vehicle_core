@@ -19,10 +19,6 @@ import traceback
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
-from numpy import cos, sin, tan
-from vehicle_core.model import vehicle_model as vm
-
-
 import rospy
 import roslib
 roslib.load_manifest('vehicle_core')
@@ -30,12 +26,12 @@ roslib.load_manifest('vehicle_core')
 import tf
 import tf.transformations as tft
 
+from vehicle_core.model import vehicle_model as vm
+from vehicle_core.model import dynamic_model as dm
 
-# ROS messages
+
 from nav_msgs.msg import Odometry
-from vehicle_interface.msg import FloatArrayStamped
-
-# Nessie VII related (previous software stack, also needs geometry_msgs)
+from vehicle_interface.msg import Vector6Stamped
 from auv_msgs.msg import NavSts
 
 
@@ -113,7 +109,6 @@ class NavigationSimulator(object):
         self.J_inv = np.zeros((6, 6))   # inverse jacobian matrix
 
 
-
         # topics
         self.input_forces = kwargs.get('input_forces', TOPIC_FRC)
         self.output_nav = kwargs.get('output_nav', TOPIC_NAV)
@@ -137,7 +132,7 @@ class NavigationSimulator(object):
         self.rot_mat = np.dot( rot_mat_z, rot_mat_y )
 
         # ros interface
-        self.sub_frc = rospy.Subscriber(self.input_forces, FloatArrayStamped, self.handle_forces, tcp_nodelay=True, queue_size=1)
+        self.sub_forces = rospy.Subscriber(self.input_forces, Vector6Stamped, self.handle_forces, tcp_nodelay=True, queue_size=1)
         self.pub_navs = rospy.Publisher(self.output_nav, NavSts, tcp_nodelay=True, queue_size=1)
         self.pub_odom = rospy.Publisher(self.topic_odom, Odometry, tcp_nodelay=True, queue_size=1)
         #self.pub_force = rospy.Publisher(self.output_forces, WrenchStamped, tcp_nodelay=True, queue_size=1)
@@ -240,33 +235,6 @@ class NavigationSimulator(object):
     #     self.pub_force.publish(ws)
 
 
-    # TODO: move jacobian to dynamic_model and use the optimized version (inversion needs to be done on the python side)
-    def update_jacobian(self, position):
-        # unpack position
-        x, y, z, phi, theta, psi = position
-
-        # x,y,z jacobian
-        self.J[0:3,0:3] = np.array([
-            [cos(theta) * cos(psi),
-             cos(psi) * sin(theta) * sin(phi) - sin(psi) * cos(phi),
-             sin(psi) * sin(phi) + cos(psi) * cos(phi) * sin(theta)],
-            [cos(theta) * sin(psi),
-             cos(psi) * cos(phi) + sin(phi) * sin(theta) * sin(psi),
-             sin(psi) * sin(theta) * cos(phi) - cos(psi) * sin(phi)],
-            [-sin(theta), cos(theta) * sin(phi), cos(theta) * cos(phi)]
-        ])
-
-        # k,m,n jacobian
-        self.J[3:6,3:6] = np.array([
-            [1.0, sin(phi) * tan(theta), cos(phi) * tan(theta)],
-            [0.0, cos(phi), -sin(phi)],
-            [0.0, sin(phi) / cos(theta), cos(phi) / cos(theta)]
-        ])
-
-        # also update the inverse jacobian
-        self.J_inv = np.linalg.inv(self.J)
-
-
     def compute_acceleration(self, position, velocity):
         """This function is used as basic step function for different integrators.
 
@@ -288,7 +256,9 @@ class NavigationSimulator(object):
         # integration of velocity and convert to earth-fixed reference
         self.vel = self.vel + (self.acc * self.dt)
 
-        self.update_jacobian(self.pos)
+        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
+        self.J_inv = np.linalg.inv(self.J)
+
         vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
 
         # integration of position (double term integrator)
@@ -303,7 +273,9 @@ class NavigationSimulator(object):
         _, acc_prev = self.compute_acceleration(self.pos, self.vel)
 
         # convert velocity to earth-fixed reference
-        self.update_jacobian(self.pos)
+        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
+        self.J_inv = np.linalg.inv(self.J)
+
         vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
         acc_efec = np.dot(self.J, acc_prev.reshape((6, 1))).flatten()
 
@@ -326,7 +298,9 @@ class NavigationSimulator(object):
         vel, acc = self.compute_acceleration(pos, vel)
 
         # convert velocity to global coordinates as we want position in global coordinates
-        self.update_jacobian(pos)
+        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
+        self.J_inv = np.linalg.inv(self.J)
+
         vel_efec = np.dot(self.J, vel.reshape((6, 1))).flatten()
 
         return np.concatenate((vel_efec, acc))
