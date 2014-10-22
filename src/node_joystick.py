@@ -9,7 +9,7 @@ import rospy
 import roslib
 roslib.load_manifest('vehicle_core')
 
-import vehicle_core.model.thrusters_model as tm
+import vehicle_core.model.thruster_model as tm
 import vehicle_core.config.thrusters_config as tc
 
 from sensor_msgs.msg import Joy

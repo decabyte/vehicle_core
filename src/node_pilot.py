@@ -8,7 +8,7 @@ import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
 from vehicle_core.config import thrusters_config as tc
-from vehicle_core.model import thrusters_model as tm
+from vehicle_core.model import thruster_model as tm
 from vehicle_core.model import dynamic_model as dm
 from vehicle_core.control import thrust_allocation as ta
 from vehicle_core.control import vehicle_controller as vc
@@ -547,9 +547,6 @@ class VehiclePilot(object):
         else:
             self.forces_sat = ta.saturation_allocation(self.tau_total, self.local_inv_TAM)
 
-
-        # print(map(np.shape, (self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)))
-        # print(map(type, (self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)))
 
         # use inverse thruster model to compensate non linear effects
         self.throttle = tm.estimate_throttle(self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)

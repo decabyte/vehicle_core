@@ -6,7 +6,7 @@ import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
 from vehicle_core.config import  thrusters_config as tc
-from vehicle_core.model import thrusters_model as tm
+from vehicle_core.model import thruster_model as tm
 from vehicle_core.model import throttle_model as th
 
 import rospy
