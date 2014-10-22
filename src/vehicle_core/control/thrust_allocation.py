@@ -3,12 +3,11 @@
 from __future__ import division
 
 import numpy as np
-
-from vehicle_core.config import thrusters_config as tc
-
 np.set_printoptions(precision=3, suppress=True)
 
 # TODO: remove this dependency and make all the tc.XXX an input parameter that the pilot will pass and add pythran optimization
+from vehicle_core.config import thrusters_config as tc
+
 
 def tam_weighted_inverse(Ta, efficiency):
     """Weighted pseudo-inverse (generalized version) - Fossen et al.
@@ -64,11 +63,11 @@ def saturation_allocation(tau_request, inv_TAM):
     """
     forces = np.dot(inv_TAM, tau_request)
 
-    if np.any(forces[0:4] > tc.MAX_THRUST):
-        forces[0:4] = (forces[0:4] / np.max(forces[0:4])) * tc.MAX_THRUST
+    if np.any(forces[0:4] > tc.MAX_FORCE):
+        forces[0:4] = (forces[0:4] / np.max(forces[0:4])) * tc.MAX_FORCE
 
-    if np.any(forces[4:6] > tc.MAX_THRUST):
-        forces[4:6] = (forces[4:6] / np.max(forces[4:6])) * tc.MAX_THRUST
+    if np.any(forces[4:6] > tc.MAX_FORCE):
+        forces[4:6] = (forces[4:6] / np.max(forces[4:6])) * tc.MAX_FORCE
 
     return forces
 
@@ -83,7 +82,7 @@ def priority_allocation(tau_request, inv_TAM):
     :param inv_TAM:
     :return: tau_assigned
     """
-    thrust_available = np.ones(inv_TAM.shape[0]) * tc.MAX_THRUST
+    thrust_available = np.ones(inv_TAM.shape[0]) * tc.MAX_FORCE
     forces_assigned = np.zeros_like(tau_request)
 
     for dof in (2, 5, 1, 0, 4, 3):
@@ -126,7 +125,7 @@ def evaluate_max_force(inv_TAM):
     max_contribution = np.max(np.abs(inv_TAM), axis=0)
 
     # for what value of force requested will it saturate?
-    max_u = tc.MAX_THRUST / max_contribution
+    max_u = tc.MAX_FORCE / max_contribution
 
     # avoid NaN and Inf
     max_u[np.where(np.isinf(max_u))] = 0

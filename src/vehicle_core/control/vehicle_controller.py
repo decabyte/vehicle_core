@@ -9,8 +9,6 @@ from vehicle_core.model import vehicle_model as vm
 from vehicle_core.model import dynamic_model as dm
 
 
-np.set_printoptions(precision=3, suppress=True)
-
 # controller modes
 MODE_POSITION = 0
 MODE_VELOCITY = 1

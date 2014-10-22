@@ -16,7 +16,10 @@
 from __future__ import division
 
 import numpy as np
+import scipy as sci
+import scipy.signal
 np.set_printoptions(precision=5, suppress=True)     # numpy visualization options
+
 
 # Thrusters Maximum Throttle
 #   empirically measured to achieve better stability across all thrusters (on Nessie AUV)
@@ -24,7 +27,7 @@ MAX_THROTTLE = 85
 
 # Thruster Maximum Force
 #   calculated from thruster data sheet (kg * g = N)
-MAX_THRUST = 4 * 9.81                                                # force of as single thruster (in newtons from kg)
+MAX_FORCE = 4 * 9.81                                                 # force of as single thruster (in newtons from kg)
 MAX_U = np.array([78.48, 63.2084, 61.33067, 0., 41.3982, 51.97198])  # max force for every axis in N and Nm
 
 
@@ -33,6 +36,10 @@ MAX_U = np.array([78.48, 63.2084, 61.33067, 0., 41.3982, 51.97198])  # max force
 #   the interpolation on thruster vert-front is not following the same behaviour of other thrusters
 #   therefore the linear zone is different and here we take into account this factor (5 instead of 15)
 LINEAR_THROTTLE = np.array([15, 15, 15, 15, 5, 15])
+
+# Inverse Thruster Modelling
+#   model threshold:    any force or thrust requested below this threshold should translate to a zero throttle request
+THRUST_THRESHOLD = 0.10
 
 # Thruster Back Constant
 #   this is taking into account the fact the thruster is less efficient when reversing
@@ -131,3 +138,17 @@ THRUST_TO_THROTTLE = np.array([
     [45.691981455875791, 0.155636712004254, -47.272386331380808, -1.816994467894909, -42.125932688352009, 0.189544579573439, 48.830681820629472, -2.392191827351297],
     [44.772496022010827, 0.173593142053517, -36.383596251516934, -2.133464912729834, -43.248375165595057, 0.179827504584565, 37.522929806266326, -2.767770782316266]
 ])
+
+
+# Thruster Modelling (prediction of thruster feedback throttle given throttle request)
+#   this is done using a low-pass filtering cascaded with a rate limiter
+#   these are the parameters of this two components
+#
+LPF_FS = 10             # topic sampling frequency (Hz)
+LPF_ORDER = 1           # order of the butterworth filter
+LPF_CUTOFF = 0.55       # low-pass filter cutoff frequency (Hz) - adjusted with sine_test_20140625 data
+LPF_WINDOW = 40         # lpf buffer length (samples)
+LPF_DELAY = 1           # number of samples to delay (modelling of ROS + thruster latency)
+
+# low pass filter (b)
+LPF = sci.signal.butter(LPF_ORDER, LPF_CUTOFF / (LPF_FS / 2), 'low', analog=False)

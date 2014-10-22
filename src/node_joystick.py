@@ -209,7 +209,7 @@ class JoystickInterface(object):
         elif self.mode == MODE_DIRECT:
             # throttle mapping using the linearization and limits
             tau = np.dot(tc.inv_TAM, forces)
-            throttle = tm.thruster_model_throttle(tau)
+            throttle = tm.estimate_throttle(tau, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)
             throttle = np.clip(throttle, -self.speed_limit, self.speed_limit)
 
             # send throttle

@@ -548,8 +548,11 @@ class VehiclePilot(object):
             self.forces_sat = ta.saturation_allocation(self.tau_total, self.local_inv_TAM)
 
 
+        # print(map(np.shape, (self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)))
+        # print(map(type, (self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)))
+
         # use inverse thruster model to compensate non linear effects
-        self.throttle = tm.thruster_model_throttle(self.forces_sat)
+        self.throttle = tm.estimate_throttle(self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)
 
         # direct mapping (doesn't apply linear forces)
         #self.throttle = (self.tau / tc.MAX_THRUST) * tc.MAX_THROTTLE
