@@ -165,7 +165,6 @@ def calc_mass_term(vel, mass_matrix):
     ])
 
 
-# TODO: pythran is failing to compile this function, investigation is needed (otherwise move this to vehicle_model)
 #pythran export calc_model_forces(float[], float[], float[], float[], float, float[], float, float, float[][], float[], float[])
 def calc_model_forces(pos, vel, cog, cob, mass, inertia, W, B, mass_matrix, added_terms, quadratic_coeff):
     M = calc_mass_term(vel, mass_matrix)

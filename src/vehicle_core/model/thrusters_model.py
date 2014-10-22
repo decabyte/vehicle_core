@@ -5,7 +5,7 @@
 import numpy as np
 
 
-#pythran export rate_limiter(float[], float[], int, int)
+#pythran export rate_limiter(float[], float[], float, float)
 def rate_limiter(new_throttle, last_throttle, rising_limit, falling_limit):
     """Models the change in thruster's throttle.
 
@@ -97,7 +97,7 @@ def estimate_throttle(force_request, coeff, linear, threshold, max_force):
     # calculate required thrust and limit according to vehicle specs
     #   thrust_request: is in kilograms as the fitting is done using thruster's data sheet
     throttle_required = np.zeros_like(force_request)
-    thrust_request = np.clip(force_request, -max_force, max_force) / 9.81
+    thrust_request = np.clip(force_request / 9.81, -max_force, max_force)
 
     for i, thrust in enumerate(thrust_request):
         if thrust > threshold:
