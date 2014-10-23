@@ -1,5 +1,6 @@
 thruster_model:
     model_delay: 1                  # number of samples delayed (works independently of the rate limiter)
+
     throttle_rate_limit: true       # control the rate limiter
     throttle_rising_limit: 5.0      # simulated feedback rising limit (this has been measured experimentally)
     throttle_falling_limit: 3.0     # simulated feedback falling limit (this has been measured experimentally)

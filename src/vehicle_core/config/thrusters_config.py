@@ -16,9 +16,10 @@
 from __future__ import division
 
 import numpy as np
+np.set_printoptions(precision=5, suppress=True)     # numpy visualization options
+
 import scipy as sci
 import scipy.signal
-np.set_printoptions(precision=5, suppress=True)     # numpy visualization options
 
 
 # Thrusters Maximum Throttle
@@ -152,3 +153,8 @@ LPF_DELAY = 1           # number of samples to delay (modelling of ROS + thruste
 
 # low pass filter (b)
 LPF = sci.signal.butter(LPF_ORDER, LPF_CUTOFF / (LPF_FS / 2), 'low', analog=False)
+
+# rate limiter
+THROTTLE_DELAY = 1              # (samples)
+THROTTLE_RISING_LIMIT = 5       # positive rate (throttle units)
+THROTTLE_FALLING_LIMIT = 3      # negative rate (throttle units)

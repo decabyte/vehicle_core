@@ -20,11 +20,6 @@ TOPIC_MODEL = 'thrusters/model'
 TOPIC_CMDS = 'thrusters/commands'
 TOPIC_FORCES = 'forces/body'
 
-# constants
-THROTTLE_LIMIT = 85             # keep throttle below this limit
-THROTTLE_RISING_LIMIT = 5       # change for sampling time allowed
-THROTTLE_FALLING_LIMIT = 3      # change for sampling time allowed
-
 
 class SimulatedThrusters(object):
     def __init__(self, name, topic_input, topic_feedback, topic_forces, thruster_limit, **kwargs):
@@ -40,8 +35,8 @@ class SimulatedThrusters(object):
         self.throttle_limit = thruster_limit
 
         self.limit_rate = bool(kwargs.get('limit_rate', False))
-        self.rising_limit = float(kwargs.get('rising_limit', THROTTLE_RISING_LIMIT))
-        self.falling_limit = float(kwargs.get('falling_limit', THROTTLE_FALLING_LIMIT))
+        self.rising_limit = float(kwargs.get('rising_limit', tc.THROTTLE_RISING_LIMIT))
+        self.falling_limit = float(kwargs.get('falling_limit', tc.THROTTLE_FALLING_LIMIT))
         self.model_delay = int(kwargs.get('model_delay', 0))
 
         self.rising_limit = np.clip(self.rising_limit, 0, 100)
@@ -106,7 +101,7 @@ if __name__ == '__main__':
     topic_input = rospy.get_param('~topic_input', TOPIC_CMDS)
     topic_feedback = rospy.get_param('~topic_feedback', TOPIC_MODEL)
     topic_forces = rospy.get_param('~topic_forces', TOPIC_FORCES)
-    lim = int(rospy.get_param('thrusters/throttle_limit', THROTTLE_LIMIT))
+    lim = int(rospy.get_param('thrusters/throttle_limit', tc.MAX_THROTTLE))
     lim = int(np.clip(lim, 0, 100).astype(int))
 
     config = rospy.get_param('thruster_model', dict())

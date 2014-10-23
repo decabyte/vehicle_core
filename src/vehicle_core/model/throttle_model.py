@@ -21,8 +21,8 @@ def predict_throttle(throttle_request, b, a, offset, limit):
     :return: throttle_model is the predicted value of the throttle
     """
 
-    # apply latency delay
-    throttle_delayed = throttle_request[:, 0:-(1 - offset)]
+    # apply latency delay (offset is positive)
+    throttle_delayed = throttle_request[:, 0:-(offset + 1)]
     throttle_model = np.zeros_like(throttle_delayed)
 
     # apply low-pass filter (using scipy)
