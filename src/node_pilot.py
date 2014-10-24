@@ -36,6 +36,17 @@ MAX_SPEED = np.array([1.5, 1, 1, 0, 2, 2])      # max speed (m/s and rad/s)
 CTRL_DISABLED = 0
 CTRL_ENABLED = 1
 
+STATUS_CTRL = {
+    CTRL_DISABLED: PilotStatus.PILOT_DISABLED,
+    CTRL_ENABLED: PilotStatus.PILOT_ENABLED
+}
+
+STATUS_MODE = {
+    vc.MODE_POSITION: PilotStatus.MODE_POSITION,
+    vc.MODE_VELOCITY: PilotStatus.MODE_VELOCITY,
+    vc.MODE_STATION: PilotStatus.MODE_STATION
+}
+
 
 # ros topics
 TOPIC_NAV = 'nav/nav_sts'
@@ -158,11 +169,10 @@ class VehiclePilot(object):
 
         # adaptive thruster allocation matrix and thruster usage weights
         self.diagnostic_metric = np.zeros(6)
-        self.fault_MAX_U = np.copy(tc.MAX_U)
-        self.fault_MAX_SPEED = np.copy(MAX_SPEED)
+        self.available_forces = np.copy(tc.MAX_U)
 
 
-        self.sub_diag = rospy.Subscriber(TOPIC_METRIC, FloatArrayStamped, self.handle_diag, tcp_nodelay=True, queue_size=3)
+        self.sub_diag = rospy.Subscriber(TOPIC_METRIC, FloatArrayStamped, self.handle_diagnostics, tcp_nodelay=True, queue_size=3)
         self.s_fault_ctrl = rospy.Service(SRV_FAULT_CTRL, BooleanService, self.srv_fault_ctrl)
         self.s_fault_speeds = rospy.Service(SRV_FAULT_SPEEDS, BooleanService, self.srv_fault_speeds)
 
@@ -297,7 +307,7 @@ class VehiclePilot(object):
 
 
 
-    def handle_diag(self, data):
+    def handle_diagnostics(self, data):
         if len(data.values) == 6:
             self.diagnostic_metric = np.array(data.values[0:6])
         else:
@@ -330,9 +340,8 @@ class VehiclePilot(object):
         self.tau_user = np.clip(user_input, -tc.MAX_U, tc.MAX_U)
 
 
+    # TODO: prevent zero or missing nav data to mess with the pilot node!
     def handle_nav(self, data):
-        # TODO: prevent zero or missing nav data to mess with the pilot node!
-
         # parse navigation data
         self.pos = np.array([
             data.position.north,
@@ -453,8 +462,8 @@ class VehiclePilot(object):
         ps = PilotStatus()
         ps.header.stamp = rospy.Time.now()
 
-        ps.status = str(self.ctrl_status)
-        ps.mode = str(self.ctrl_mode)
+        ps.status = STATUS_CTRL[self.ctrl_status]
+        ps.mode = STATUS_MODE[self.ctrl_mode]
         ps.des_pos = self.des_pos.tolist()
         ps.des_vel = self.des_vel.tolist()
         ps.err_pos = self.err_pos.tolist()
@@ -463,12 +472,8 @@ class VehiclePilot(object):
         ps.lim_vel_ctrl = self.lim_vel_ctrl.tolist()
         ps.lim_vel_user = self.lim_vel_user.tolist()
 
-        if self.fault_control:
-            ps.info = [
-                KeyValue('thruster_efficiency', str(self.thruster_efficiency.tolist())),
-                KeyValue('fault_MAX_U', str(self.fault_MAX_U.tolist())),
-                # KeyValue('fault_MAX_SPEED', str(self.fault_MAX_SPEED.tolist()))
-            ]
+        ps.available_forces = self.available_forces
+        ps.thruster_efficiency = self.thruster_efficiency
 
         self.pub_status.publish(ps)
 
@@ -525,14 +530,13 @@ class VehiclePilot(object):
         self.local_inv_TAM = ta.tam_weighted_inverse(self.local_TAM, local_efficiency)
 
 
-        # TODO: rename this flag and the fault_max_U as a first class citizens in the pilot implementation
         # update speeds limits using available thrust and efficiencies
         if self.fault_speeds:
-            self.fault_MAX_U = ta.evaluate_max_force(self.local_inv_TAM)
+            self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
 
             # avoid divisions by zero
             for dof in np.argwhere(tc.MAX_U != 0):
-                self.lim_vel_ctrl[dof] = MAX_SPEED * np.sqrt(self.fault_MAX_U[dof] / tc.MAX_U[dof])
+                self.lim_vel_ctrl[dof] = MAX_SPEED * np.sqrt(self.available_forces[dof] / tc.MAX_U[dof])
 
             self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, 0, MAX_SPEED)
 
@@ -615,11 +619,13 @@ class VehiclePilot(object):
           for_s: %s
           thl: %s
           eff: %s
+          dis: %s
         """ % (
             self.pos, self.vel, self.des_pos, self.des_vel,
             self.lim_vel_user, self.lim_vel_ctrl,
             self.tau_ctrl, self.tau_user, self.tau_total,
-            self.forces, self.forces_sat, self.throttle, self.thruster_efficiency
+            self.forces, self.forces_sat, self.throttle,
+            self.thruster_efficiency, self.disable_axis
         )
 
 

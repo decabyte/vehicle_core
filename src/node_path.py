@@ -384,17 +384,6 @@ class PathController(object):
 
             ps.path_completion = (ps.distance_completed / self.path_obj.total_distance) * 100.0
 
-        # if event == P_COMPLETED:
-        #     ps.info.append(KeyValue('path_completed', str(self.path_id)))
-        #     ps.info.append(KeyValue('time_started', str(self.path_time_start)))
-        #     ps.info.append(KeyValue('time_completed', str(rospy.Time().now().to_sec())))
-        #
-        # elif event == P_RUNNING:
-        #     ps.info.append(KeyValue('path_timeout', str(self.path_id)))
-        #
-        # elif event == P_ABORT:
-        #     ps.info.append(KeyValue('path_reset', str(self.path_id)))
-
         self.pub_path_status.publish(ps)
 
         if self.visualization:
