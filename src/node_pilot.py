@@ -20,7 +20,7 @@ roslib.load_manifest('vehicle_core')
 from auv_msgs.msg import NavSts
 from diagnostic_msgs.msg import KeyValue
 
-from vehicle_interface.msg import ThrusterCommand, PilotStatus, PilotRequest, Vector6Stamped, FloatArrayStamped
+from vehicle_interface.msg import ThrusterCommand, PilotStatus, PilotRequest, Vector6Stamped, FloatArrayStamped, Vector6, Vector6ArrayStamped
 from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatService, FloatServiceResponse
 
 
@@ -69,6 +69,9 @@ SRV_THRUSTERS = 'thrusters/switch'
 TOPIC_METRIC = 'thrusters/diagnostics'      # read the diagnostic metric (if any)
 SRV_FAULT_CTRL = 'pilot/fault_control'      # enable/disable the adaptive fault thruster reallocation
 SRV_FAULT_SPEEDS = 'pilot/fault_speeds'     # enable/disable the adaptive fault speeds correction
+
+# autotuning
+TOPIC_GAINS = 'controller/gains'
 
 
 THRESH_METRIC = np.array([0.1, 100, 100, 100, 100, 100])    # threshold for thrusters diagnostic metric
@@ -171,10 +174,13 @@ class VehiclePilot(object):
         self.diagnostic_metric = np.zeros(6)
         self.available_forces = np.copy(tc.MAX_U)
 
-
+        # diagnostics
         self.sub_diag = rospy.Subscriber(TOPIC_METRIC, FloatArrayStamped, self.handle_diagnostics, tcp_nodelay=True, queue_size=3)
         self.s_fault_ctrl = rospy.Service(SRV_FAULT_CTRL, BooleanService, self.srv_fault_ctrl)
         self.s_fault_speeds = rospy.Service(SRV_FAULT_SPEEDS, BooleanService, self.srv_fault_speeds)
+
+        # gains
+        self.pub_gains = rospy.Publisher(TOPIC_GAINS, Vector6ArrayStamped, tcp_nodelay=True, queue_size=1)
 
         # optional info
         if self.verbose:
@@ -458,7 +464,7 @@ class VehiclePilot(object):
 
 
 
-    def send_status(self, event):
+    def send_status(self, event=None):
         ps = PilotStatus()
         ps.header.stamp = rospy.Time.now()
 
@@ -476,6 +482,34 @@ class VehiclePilot(object):
         ps.thruster_efficiency = self.thruster_efficiency
 
         self.pub_status.publish(ps)
+
+
+        # added for the autotuning controller test
+        if self.ctrl_type == 'autotuning':
+            self.send_gains()
+
+
+    # added for the autotuning controller test
+    def send_gains(self, event=None):
+
+        if self.ctrl_type != 'autotuning':
+            return
+
+        va = Vector6ArrayStamped()
+        gains = [
+            self.controller.pos_Kp,
+            self.controller.pos_Kd,
+            self.controller.pos_Ki,
+            self.controller.vel_Kp,
+            self.controller.vel_Kd,
+            self.controller.vel_Ki,
+        ]
+
+        for g in gains:
+            va.values.append(Vector6(g))
+
+        self.pub_gains.publish(va)
+
 
 
     def loop(self):

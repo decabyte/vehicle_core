@@ -314,16 +314,6 @@ class AutoTuningController(CascadedController):
         self.adapt_limit_pos = np.zeros(3)
         self.adapt_limit_vel = np.zeros(3)
 
-        # adaption filter
-        self.alpha = 0.7                    # forgetting factor (higher values make the controller rely on its past)
-        self.pos_Kp_prev = np.zeros(6)      # previous coefficients
-        self.pos_Ki_prev = np.zeros(6)
-        self.pos_Kd_prev = np.zeros(6)
-        self.vel_Kp_prev = np.zeros(6)
-        self.vel_Ki_prev = np.zeros(6)
-        self.vel_Kd_prev = np.zeros(6)
-
-
 
     def update_config(self, ctrl_config, model_config):
         # trimming offsets
@@ -406,9 +396,6 @@ class AutoTuningController(CascadedController):
         self.err_pos[3:6] = wrap_pi(self.err_pos[3:6])
         self.err_pos[4] = np.clip(self.err_pos[4], -MAX_PITCH, MAX_PITCH)
 
-        # change the angles to degrees
-        #self.err_pos[3:6] = np.rad2deg(self.err_pos[3:6])
-        #self.err_pos[3:6] = np.tan(self.err_pos[3:6] / 2)
 
         # update the errors
         self.err_pos_int = np.clip(self.err_pos_int + self.err_pos, -self.pos_lim, self.pos_lim)
@@ -423,11 +410,6 @@ class AutoTuningController(CascadedController):
         self.pos_Kp = np.clip(self.pos_Kp, -self.adapt_limit_pos[0], self.adapt_limit_pos[0])
         self.pos_Ki = np.clip(self.pos_Ki, -self.adapt_limit_pos[1], self.adapt_limit_pos[1])
         self.pos_Kd = np.clip(self.pos_Kd, -self.adapt_limit_pos[2], self.adapt_limit_pos[2])
-
-        # store gains
-        self.pos_Kp_prev = self.pos_Kp
-        self.pos_Ki_prev = self.pos_Ki
-        self.pos_Kd_prev = self.pos_Kd
 
 
         # PI controller limited (outer loop on position) - velocity
@@ -456,11 +438,6 @@ class AutoTuningController(CascadedController):
         self.vel_Kp = np.clip(self.vel_Kp, -self.adapt_limit_vel[0], self.adapt_limit_vel[0])
         self.vel_Ki = np.clip(self.vel_Ki, -self.adapt_limit_vel[1], self.adapt_limit_vel[1])
         self.vel_Kd = np.clip(self.vel_Kd, -self.adapt_limit_vel[2], self.adapt_limit_vel[2])
-
-        # store gains
-        self.vel_Kp_prev = self.vel_Kp
-        self.vel_Ki_prev = self.vel_Ki
-        self.vel_Kd_prev = self.vel_Kd
 
 
         # PI controller velocity
