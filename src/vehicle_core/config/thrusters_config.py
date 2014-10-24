@@ -36,7 +36,7 @@ MAX_U = np.array([78.48, 63.2084, 61.33067, 0., 41.3982, 51.97198])  # max force
 #   empirically measured to improve thrusters linearization (on Nessie AUV)
 #   the interpolation on thruster vert-front is not following the same behaviour of other thrusters
 #   therefore the linear zone is different and here we take into account this factor (5 instead of 15)
-LINEAR_THROTTLE = np.array([15, 15, 15, 15, 5, 15])
+LINEAR_THROTTLE = np.array([15.0, 15.0, 15.0, 15.0, 5.0, 15.0])
 
 # Inverse Thruster Modelling
 #   model threshold:    any force or thrust requested below this threshold should translate to a zero throttle request

@@ -129,12 +129,12 @@ class VehiclePilot(object):
         self.reload_config()
 
         # outputs
-        self.tau_ctrl = np.zeros(6)         # u = [X, Y, Z, K, M, N]
-        self.tau_user = np.zeros(6)
-        self.tau_total = np.zeros(6)
-        self.forces = np.zeros(6)
-        self.tau_tam = np.zeros(6)
-        self.throttle = np.zeros(6)
+        self.tau_ctrl = np.zeros(6, dtype=np.float64)         # u = [X, Y, Z, K, M, N]
+        self.tau_user = np.zeros(6, dtype=np.float64)
+        self.tau_total = np.zeros(6, dtype=np.float64)
+        self.forces = np.zeros(6, dtype=np.float64)
+        self.tau_tam = np.zeros(6, dtype=np.float64)
+        self.throttle = np.zeros(6, dtype=np.float64)
 
         # alpha mapping for mixing thruster allocation matrices
         self.speed_m = 1.0 / np.abs(self.thres_fast_speed - self.thres_slow_speed)
@@ -546,7 +546,6 @@ class VehiclePilot(object):
             self.forces_sat = ta.priority_allocation(self.tau_total, self.local_inv_TAM)
         else:
             self.forces_sat = ta.saturation_allocation(self.tau_total, self.local_inv_TAM)
-
 
         # use inverse thruster model to compensate non linear effects
         self.throttle = tm.estimate_throttle(self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)
