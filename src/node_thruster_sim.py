@@ -3,6 +3,8 @@
 from __future__ import division
 
 import numpy as np
+from vehicle_core.model.throttle_model import rate_limiter
+
 np.set_printoptions(precision=3, suppress=True)
 
 from vehicle_core.config import  thrusters_config as tc
@@ -60,7 +62,7 @@ class SimulatedThrusters(object):
 
         if self.limit_rate is True:
             # new thrusters filter
-            self.v_predicted = tm.rate_limiter(
+            self.v_predicted = th.rate_limiter(
                 self.v_predicted, self.v_last, rising_limit=self.rising_limit, falling_limit=self.falling_limit
             )
 

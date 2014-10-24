@@ -4,33 +4,6 @@
 
 import numpy as np
 
-
-#pythran export rate_limiter(float[], float[], float, float)
-def rate_limiter(new_throttle, last_throttle, rising_limit, falling_limit):
-    """Models the change in thruster's throttle.
-
-    http://www.mathworks.co.uk/help/simulink/slref/ratelimiter.html
-
-    :param last_throttle: result of a previous iteration
-    :param new_throttle:
-    :param rising_limit: rising rate limit between two samples
-    :param falling_limit: falling rate limit between two samples
-    :return: next_throttle: the new throttle after applying rate limits
-    """
-    diff_throttle = new_throttle - last_throttle
-    next_throttle = np.zeros_like(new_throttle)
-
-    for i, dth in enumerate(diff_throttle):
-        if dth > rising_limit:
-            next_throttle[i] = last_throttle[i] + rising_limit
-        elif dth < -falling_limit:
-            next_throttle[i] = last_throttle[i] - falling_limit
-        else:
-            next_throttle[i] = new_throttle[i]
-
-    return next_throttle
-
-
 #pythran export estimate_current(float[], float[][])
 def estimate_current(throttle, coeff):
     """This function is calculating the current used by the thrusters from thruster commands
