@@ -4,14 +4,12 @@ from __future__ import division
 
 import time
 import numpy as np
-
-from vehicle_core.util import trajectory_tools as tt
-
-
 np.set_printoptions(precision=3, suppress=True)
 
 import scipy as sci
 import scipy.interpolate
+
+from vehicle_core.util import trajectory_tools as tt
 
 
 # default config
@@ -69,7 +67,11 @@ class PathStrategy(object):
         self.path_completed = False
 
 
-    def distance_completed(self, position):
+    def distance_left(self, position=None):
+        return self.cum_distances[-1] - self.distance_completed(position)
+
+
+    def distance_completed(self, position=None):
         """Calculate the distance along the trajectory covered so far. The distance between the last point (A)
         and current position (B) is calculated by projecting the displacement vector (A-B) on vector representing
         the distance between last point (A) and target point (C). The maximum of this distance is |AC|. Then
@@ -78,21 +80,19 @@ class PathStrategy(object):
         :param position: numpy array of shape (6)
         :return: float - distance in meters
         """
-        current_wp = self.points[self.cnt]
-        prev_wp = self.points[self.cnt-1]
+        current_wp = self.points[self.cnt - 1]
+        prev_wp = self.points[self.cnt - 2]
+        added_distance = 0
 
-        vehicle_direction = (position[0:3] - prev_wp[0:3])
-        trajectory_direction = (current_wp[0:3] - prev_wp[0:3])
+        if position is not None:
+            vehicle_direction = (position[0:3] - prev_wp[0:3])
+            trajectory_direction = (current_wp[0:3] - prev_wp[0:3])
 
-        if np.linalg.norm(trajectory_direction) != 0:
-            added_distance = np.dot(vehicle_direction, trajectory_direction) / np.linalg.norm(trajectory_direction)
-        else:
-            added_distance = 0
+            if np.linalg.norm(trajectory_direction) != 0:
+                added_distance = np.dot(vehicle_direction, trajectory_direction) / np.linalg.norm(trajectory_direction)
 
-        return self.cum_distances[self.cnt - 1] + added_distance
+        return self.cum_distances[self.cnt - 2] + added_distance
 
-    def distance_left(self):
-        return self.cum_distances[-1] - self.distance_completed()
 
     def calculate_position_error(self, current_position, desired_position):
         error = current_position - desired_position
@@ -153,6 +153,10 @@ class LineStrategy(PathStrategy):
         self.spacing = float(kwargs.get('spacing', LINE_SPACING))
         self.points = tt.interpolate_trajectory(self.points, self.spacing, face_goal=True)
         self.proximity = False
+
+        # calculate distances (after interpolating the points)
+        self.cum_distances = tt.cumulative_distance(self.points, spacing_dim=3)
+        self.total_distance = self.cum_distances[-1]
 
 
     def update(self, position, velocity):
@@ -368,118 +372,3 @@ class FastLineStrategy(PathStrategy):
                 self.path_completed = True
                 self.des_pos = self.points[-1]
                 #print('Path completed')
-
-
-
-
-############### DEMO #############################
-def plot_run(points, requested_points, vehicle_points, animate=False):
-    # plots
-    fig, ax = tt.plot_trajectory(points)
-    tt.plot_trajectory(requested_points, fig=fig, ax=ax, p_style='b', show_orientation=False)
-    tt.plot_trajectory(vehicle_points, fig=fig, ax=ax, p_style='g')
-
-    # add vehicle
-    patch = plt.Rectangle((0, 0), .6, 1.3)
-
-    if animate:
-        def init():
-            patch.set_x(10000)
-            patch.set_y(10000)
-            ax.add_patch(patch)
-            return patch,
-
-        def animate(t):
-            x = vehicle_points[t, 1]
-            y = vehicle_points[t, 0]
-            angle = vehicle_points[t, 5]
-            patch.set_x(x - 0.3*np.cos(angle) - 0.65*np.sin(angle))
-            patch.set_y(y - 0.65*np.cos(angle) + 0.3*np.sin(angle))
-            patch._angle = -np.rad2deg(angle)
-            return patch,
-
-        anim = animation.FuncAnimation(
-            fig, animate, init_func=init, frames=len(vehicle_points),
-            interval=70, blit=True
-        )
-
-    plt.show()
-
-
-def demonstrate_modes(points, mode, iterations, animate=False, step=0.3):
-    if mode == 'simple':
-        path_strategist = SimpleStrategy(points[1:], position=points[0])
-    elif mode == 'lines':
-        path_strategist = LineStrategy(points[1:], position=points[0], spacing=1)
-    elif mode == 'fast':
-        path_strategist = FastLineStrategy(points[1:], position=points[0], look_ahead=5)
-    else:
-        return
-
-    requested_points = np.zeros((iterations-1, 6))
-    vehicle_points = np.zeros((iterations, 6))
-    vehicle_points[0] = points[0]
-
-    for i in xrange(1, iterations):
-        path_strategist.update(vehicle_points[i-1], [])
-        requested_points[i-1] = path_strategist.des_pos
-        vehicle_points[i] = move_vehicle(vehicle_points[i-1], path_strategist.des_pos, step)
-
-    plot_run(points, requested_points, vehicle_points, animate)
-
-
-def move_vehicle(current_position, desired_position, step):
-    direction = desired_position[0:3] - current_position[0:3]
-    modulus = np.linalg.norm((desired_position[0:3] - current_position[0:3]))
-
-    if modulus > 0:
-        direction_norm = direction/modulus
-    else:
-        direction_norm = 0
-
-    next_position = np.zeros(6)
-    next_position[0:3] = current_position[0:3] + step * direction_norm
-    next_position[3:6] = desired_position[3:6]
-
-    return next_position
-
-
-if __name__ == '__main__':
-    from matplotlib import animation
-    import matplotlib.pyplot as plt
-    center = np.array([0, 0, 0, 0, 0, 0])
-
-    # points = sp.circular_pattern(center, radius=50.0)
-    # points = sp.square_pattern(center, distance=30.0)
-    # points = sp.nested_square_pattern(center, ext_dist=30.0, int_dist=10.0, spacing=5.0)
-    points = sp.spiral_pattern(center, distance=15.0, spacing=5)
-
-    # points = np.array([[0, 0, 0, 0, 0, 3.14],
-    #                    [150, 5, 0, 0, 0, 0],
-    #                    [0, 10, 0, 0, 0, 0],
-    #                    [10, 25, 0, 0, 0, 0]])
-
-    # traj = tt.interpolate_trajectory(points, 50, face_goal=False)
-    # tt.plot_trajectory(traj)
-    demonstrate_modes(points, 'fast', iterations=2000, animate=True)
-
-    A = np.array([10, -10, 0, 0, 0, 0])
-    B = np.array([-20, 10, 0, 0, 0, 0])
-
-    points = np.array([
-        [0, 0, 0, 0, 0, 0],
-        [5, -15, 0, 0, 0, 0],
-        [-5, 20, 0, 0, 0, 0],
-        [0, 10, 0, 0, 0, 0]
-    ])
-
-    # traj = tt.interpolate_arc(A, B, radius=1, spacing=1, right=True)
-    # tt.plot_trajectory(traj)
-
-    # traj = tt.interpolate_bezier_cubic(points)
-    # tt.plot_trajectory(traj)
-
-    # traj = tt.interpolate_bezier_general(points)
-    # tt.plot_trajectory(traj)
-    #
-    # plt.show()

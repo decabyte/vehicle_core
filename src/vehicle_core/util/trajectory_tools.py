@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Trajectory generator module (TODO: this is subject to change)
+"""Trajectory Utilities Module
 
 Tasks:
     - generate trajectories
@@ -9,11 +9,11 @@ Tasks:
 from __future__ import division
 
 import datetime
-
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
-import scipy.misc as sci
+import scipy as sci
+import scipy.misc
 import matplotlib.pyplot as plt
 
 
@@ -500,13 +500,13 @@ def interpolate_bezier(points, steps=100):
 
     # could be vectorised:
     # r = range(0, n+1)
-    # coefs = sci.comb(n, r)
+    # coefs = sci.misc.comb(n, r)
     # t_1_pow = np.power(np.tile(t-1, (1, 6)), np.tile(r, (steps, 1)))
     # t_pow = np.power(np.tile(t, (1, 6)), np.tile(r, (steps, 1)))
     # etc
     for i in xrange(n+1):
-        B[:, 0:2] += sci.comb(n, i) * np.dot(((1-t)**(n-i) * t**i).reshape(100, 1), points[i, 0:2].reshape((1, 2)))
-        # coef = sci.comb(n, i)
+        B[:, 0:2] += sci.misc.comb(n, i) * np.dot(((1-t)**(n-i) * t**i).reshape(100, 1), points[i, 0:2].reshape((1, 2)))
+        # coef = sci.misc.comb(n, i)
         # B[:, 0] += coef * (1-t)**(n-i) * t**i * points[i, 0]
         # B[:, 1] += coef * (1-t)**(n-i) * t**i * points[i, 1]
     B[:, 2] = np.linspace(points[0, 2], points[-1, 2], steps)

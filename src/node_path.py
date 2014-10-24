@@ -49,16 +49,34 @@ TOPIC_VIS = 'path/markers'
 SRV_PATH_CONTROL = 'path/control'
 
 
-# states
+# node states
+S_ERROR = -1
 S_RESET = 0
 S_HOVERING = 1
 S_RUNNING = 2
 
-# status publishing
-EV_DEFAULT = 0
-EV_COMPLETE = 1
-EV_TIMEOUT = 2
-EV_RESET = 3
+# path status
+P_IDLE = 0
+P_RUNNING = 1
+P_COMPLETED = 2
+P_TIMEOUT = -1
+P_ABORT = -2
+
+# mapping status
+STATUS_PATH = {
+    P_IDLE: PathStatus.PATH_IDLE,
+    P_RUNNING: PathStatus.PATH_RUNNING,
+    P_COMPLETED: PathStatus.PATH_COMPLETED,
+    P_TIMEOUT: PathStatus.PATH_TIMEOUT,
+    P_ABORT: PathStatus.PATH_ABORT
+}
+
+STATUS_NAV = {
+    S_RESET: PathStatus.NAV_IDLE,
+    S_HOVERING: PathStatus.NAV_HOVERING,
+    S_RUNNING: PathStatus.NAV_RUNNING,
+    S_ERROR: PathStatus.NAV_ERROR
+}
 
 # path modes
 PATH_SIMPLE = 'simple'
@@ -66,8 +84,8 @@ PATH_FAST = 'fast'
 PATH_LINES = 'lines'
 
 # timing
-DEFAULT_RATE = 5        # Hz
-T_PILOT_STS = 2         # secs
+RATE_NODE = 5        # Hz
+RATE_STATUS = 0.5    # Hz
 
 
 # utils
@@ -84,10 +102,15 @@ class PathController(object):
         self.t0 = rospy.Time.now().to_sec()
 
         # path data
-        self.path_mode = None
-        self.path_timeout = 0
-        self.path_time_0 = 0
         self.path_id = -1
+        self.path_status = P_IDLE
+        self.path_mode = PATH_SIMPLE
+        self.path_obj = None
+
+        self.path_timeout = 0
+        self.path_time_start = -1
+        self.path_time_end = -1
+        self.path_time_elapsed = 0
 
         self.position = np.zeros(6)          # north, east, depth, roll, pitch, yaw
         self.velocity = np.zeros(6)          # u, v, w, p, q, r
@@ -106,7 +129,7 @@ class PathController(object):
         # ros interface
         self.pub_path_status = rospy.Publisher(TOPIC_STATUS, PathStatus, queue_size=1)
         self.pub_pos_req = rospy.Publisher(TOPIC_POS_REQ, PilotRequest, queue_size=1)
-        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.update_pos, queue_size=1)
+        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.update_nav, queue_size=1)
         # self.sub_pilot = rospy.Subscriber(TOPIC_PILOT, PilotStatus, self.update_error, queue_size=1)
 
         self.visualization = True
@@ -116,7 +139,7 @@ class PathController(object):
         self.srv_path = rospy.Service(SRV_PATH_CONTROL, PathService, self.handle_path_srv)
 
         # timers
-        self.t_path_status = rospy.Timer(rospy.Duration(T_PILOT_STS), self.publish_path_status)
+        self.t_path_status = rospy.Timer(rospy.Duration(1.0 / RATE_STATUS), self.publish_path_status)
 
 
     def loop(self):
@@ -135,29 +158,39 @@ class PathController(object):
         self.send_position_request()        # maybe send a stay request?
 
     def running(self):
-        if self.path_mode is None or self.path_mode.path_completed is True:
+        if self.path_obj is None or self.path_obj.path_completed is True:
             self.cmd_hover()
             return
 
         # update navigation time
-        self.path_time_elapsed = rospy.Time().now().to_sec() - self.path_time_0
+        self.path_time_elapsed = rospy.Time().now().to_sec() - self.path_time_start
 
         if self.path_timeout > 0 and self.path_timeout < self.path_time_elapsed:
+            # path timeout expiration
             rospy.loginfo('%s path timed out', self.name)
-            self.publish_path_status(event=EV_COMPLETE)
+            self.path_status = P_TIMEOUT
+            self.publish_path_status()
+
+            # switch to hover mode
             self.cmd_hover()
         else:
-            self.path_mode.update(self.position, self.velocity)
+            # default case navigation is allowed and running
+            self.path_obj.update(self.position, self.velocity)
+            self.des_pos = self.path_obj.des_pos
 
-
-            self.des_pos = self.path_mode.des_pos
+            # send commands to pilot
             self.send_position_request()
 
-            if self.path_mode.path_completed is True:
-                self.publish_path_status(event=EV_COMPLETE)
+            # check for completion
+            if self.path_obj.path_completed is True:
+                self.path_status = P_COMPLETED
+                self.path_time_end = rospy.Time().now().to_sec()
+                self.publish_path_status()
+
+                # switch to hover mode
                 self.cmd_hover(self.des_pos)
 
-            rospy.logdebug('%s position request: %s', self.name, self.des_pos)
+            #rospy.logdebug('%s position request: %s', self.name, self.des_pos)
 
 
     def handle_path_srv(self, request):
@@ -203,6 +236,9 @@ class PathController(object):
             response = self.srv_controller.call(True)
             rospy.loginfo('%s switching on controller: %s', self.name, response)
             self.state = S_RUNNING
+            self.path_status = P_RUNNING
+            self.path_time_end = -1
+
         except rospy.ServiceException:
             tb = traceback.format_exc()
             rospy.logerr('%s: controller service error:\n%s', self.name, tb)
@@ -224,15 +260,20 @@ class PathController(object):
 
     def cmd_reset(self, **kwargs):
         try:
-            response = self.srv_controller.call(False)
-            rospy.loginfo('%s switching off controller: %s', self.name, response)
             self.state = S_RESET
-            self.path_mode = None
+
+            self.path_obj = None
             self.input_points = None
             self.trajectory = None
+
             self.path_timeout = 0
-            self.path_time_0 = 0
-            self.publish_path_status(event=EV_RESET)
+            self.path_time_end = -1
+            self.path_status = P_ABORT
+
+            self.publish_path_status()
+
+            response = self.srv_controller.call(False)
+            rospy.loginfo('%s switching off controller: %s', self.name, response)
         except rospy.ServiceException:
             tb = traceback.format_exc()
             rospy.logwarn('%s: controller service error:\n%s', self.name, tb)
@@ -274,9 +315,10 @@ class PathController(object):
         path_options.update(kwargs)                 # pass any optional parameters from the request to the path mode
 
         try:
-            self.path_mode = generate_path[self.path_mode](**path_options)
+            #self.path_mode = generate_path[self.path_mode](**path_options)
+            self.path_obj = generate_path[self.path_mode](**path_options)
             self.path_id += 1
-            self.path_time_0 = rospy.Time().now().to_sec()
+            self.path_time_start = rospy.Time().now().to_sec()
 
             rospy.loginfo('%s new path accepted: %d', self.name, self.path_id)
         except KeyValue:
@@ -286,7 +328,7 @@ class PathController(object):
         return {'path_id': str(self.path_id)}
 
 
-    def update_pos(self, data):
+    def update_nav(self, data):
         self.position = np.array([
             data.position.north,
             data.position.east,
@@ -308,51 +350,50 @@ class PathController(object):
 
     def send_position_request(self):
         pr = PilotRequest()
+        pr.header.stamp = rospy.Time.now()
         pr.position = self.des_pos
         #pr.velocity = self.des_vel
+
         self.pub_pos_req.publish(pr)
 
 
     def publish_path_status(self, event=None):
         ps = PathStatus()
         ps.header.stamp = rospy.Time().now()
+        ps.navigation_status = STATUS_NAV[self.state]
+        ps.path_status = STATUS_PATH[self.path_status]
 
-        if self.state is S_RESET:
-            ps.status = 'reset'
-        elif self.state is S_HOVERING:
-            ps.status = 'hovering'
-        elif self.state is S_RUNNING:
-            ps.status = 'running'
+        if self.path_obj is not None:
             ps.path_id = self.path_id
+            pos = None
+
+            # this prevents the counters to overflow when the vehicle terminates the path navigation
+            # successfully and the user decides to use a different type of control (joystick, pilot requests, etc.)
+            # if self.path_status == P_RUNNING:
+            #     pos = self.position
+
+            ps.distance_completed = self.path_obj.distance_completed(pos)
+            ps.distance_left = self.path_obj.distance_left(pos)
+
             ps.time_elapsed = self.path_time_elapsed
-            # distance_travelled = self.trajectory_distances[self.trajectory_cnt-1]
-            # average_speed = distance_travelled / ps.time_elapsed
-            # ps.time_arrival = (self.trajectory_distances[-1] - distance_travelled) / average_speed
-            # ps.path_completion = distance_travelled / self.trajectory_distances[-1]
-        else:
-            ps.status = 'wrong_state'
+            ps.speed_average = ps.distance_completed / ps.time_elapsed
+            ps.time_arrival = ps.distance_left / ps.speed_average
 
-        # TODO: completion messages can be lost and clients stop advancing the mission
+            ps.time_start = self.path_time_start
+            ps.time_end = self.path_time_end
+
+            ps.path_completion = (ps.distance_completed / self.path_obj.total_distance) * 100.0
+
+        # if event == P_COMPLETED:
+        #     ps.info.append(KeyValue('path_completed', str(self.path_id)))
+        #     ps.info.append(KeyValue('time_started', str(self.path_time_start)))
+        #     ps.info.append(KeyValue('time_completed', str(rospy.Time().now().to_sec())))
         #
-        #   possible solutions:
-        #       add extra status S_COMPLETED, S_TIMEOUT
-        #       both mapping to S_HOVERING but broadcasting the completion information
-        #       this can fit the existing logic and can suggest to add all the required fields to the status message
-        #       and populate the fields only interested by the advertised status
+        # elif event == P_RUNNING:
+        #     ps.info.append(KeyValue('path_timeout', str(self.path_id)))
         #
-        #       create a new topic where completion messages are broadcasted
-        #       this is suboptimal
-
-        if event == EV_COMPLETE:
-            ps.info.append(KeyValue('path_completed', str(self.path_id)))
-            ps.info.append(KeyValue('time_started', str(self.path_time_0)))
-            ps.info.append(KeyValue('time_completed', str(rospy.Time().now().to_sec())))
-
-        elif event == EV_TIMEOUT:
-            ps.info.append(KeyValue('path_timeout', str(self.path_id)))
-
-        elif event == EV_RESET:
-            ps.info.append(KeyValue('path_reset', str(self.path_id)))
+        # elif event == P_ABORT:
+        #     ps.info.append(KeyValue('path_reset', str(self.path_id)))
 
         self.pub_path_status.publish(ps)
 
@@ -361,13 +402,13 @@ class PathController(object):
 
 
     def publish_markers(self):
-        if self.path_mode is None:
+        if self.path_obj is None:
             return
 
         ma = MarkerArray()
         ma.markers = []
 
-        for n, point in enumerate(self.path_mode.points):
+        for n, point in enumerate(self.path_obj.points):
             mm = Marker()
             mm.header.stamp = rospy.Time.now()
             mm.header.frame_id = 'odom'
@@ -387,15 +428,15 @@ class PathController(object):
             mm.scale.y = 0.2
             mm.scale.z = 0.2
 
-            if n == self.path_mode.cnt:
+            if n == self.path_obj.cnt:
                 mm.color.r = 0.75
                 mm.color.g = 0.75
                 mm.color.b = 0.75
-            elif n == self.path_mode.cnt + 1:
+            elif n == self.path_obj.cnt + 1:
                 mm.color.r = 0.75
                 mm.color.g = 0.75
                 mm.color.b = 0.0
-            elif n > self.path_mode.cnt:
+            elif n > self.path_obj.cnt:
                 mm.color.r = 1.0
                 mm.color.g = 0.0
                 mm.color.b = 0.0
@@ -417,7 +458,7 @@ if __name__ == '__main__':
 
     # init
     path = PathController(name)
-    r_loop = rospy.Rate(DEFAULT_RATE)
+    r_loop = rospy.Rate(RATE_NODE)
 
     rospy.loginfo('%s: initializing ...', name)
     rospy.loginfo('%s: waiting for nav ...', name)
