@@ -191,10 +191,10 @@ if __name__ == '__main__':
 
     # # rotation case
     # area = np.array([
-    #     [0,0,2],            # A
-    #     [10,10,2],          # B
-    #     [0, np.sqrt(2) * 10,2],            # C
-    #     [-10,10,2]          # D
+    #     [0,0,2],                  # A
+    #     [10,10,2],                # B
+    #     [0, np.sqrt(2) * 10,2],   # C
+    #     [-10,10,2]                # D
     # ])
 
     # sonar parameters
