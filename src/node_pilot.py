@@ -553,7 +553,7 @@ class VehiclePilot(object):
 
         # assign a different cost to lateral thrusters depending on forward speed
         #   thruster allocation algorithm will reduce the use of lateral thrusters for yawing at high speeds
-        if self.adaptive_yaw and np.all(local_efficiency[0:2] == 1):
+        if self.adaptive_yaw and np.all(self.thruster_efficiency[0:2] == 1):
             alpha = self.speed_m * self.vel[0] + self.speed_q
             alpha = np.clip(alpha, 0, 1)
 
