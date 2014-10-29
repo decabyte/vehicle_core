@@ -151,6 +151,8 @@ class VehiclePilot(object):
         self.throttle = np.zeros(6, dtype=np.float64)
 
         # alpha mapping for mixing thruster allocation matrices
+        self.thres_fast_speed = 1.0
+        self.thres_slow_speed = 0.0
         self.speed_m = 1.0 / np.abs(self.thres_fast_speed - self.thres_slow_speed)
         self.speed_q = -self.speed_m * self.thres_slow_speed
 
@@ -211,8 +213,8 @@ class VehiclePilot(object):
         self.fault_control = bool(pilot_config.get('fault_control', False))
         self.fault_speeds = bool(pilot_config.get('fault_speeds', False))
 
-        self.thres_fast_speed = float(pilot_config.get('thr_fast', 1.0))      # high speed manoeuvring above this fwd speed
-        self.thres_slow_speed = float(pilot_config.get('thr_slow', 0.25))     # low speed manoeuvring below this fwd speed
+        self.thres_fast_speed = float(pilot_config.get('threshold_fast', 1.0))      # high speed manoeuvring above this fwd speed
+        self.thres_slow_speed = float(pilot_config.get('threshold_slow', 0.25))     # low speed manoeuvring below this fwd speed
 
         self.thres_fast_speed = np.clip(self.thres_fast_speed, 0, MAX_SPEED[0])
         self.thres_slow_speed = np.clip(self.thres_slow_speed, 0, MAX_SPEED[0])
