@@ -378,6 +378,15 @@ class AutoTuningController(CascadedController):
             ctrl_config['vel_r']['lim'],
         ])
 
+        self.vel_input_lim = np.array([
+            ctrl_config['vel_u']['input_lim'],
+            ctrl_config['vel_v']['input_lim'],
+            ctrl_config['vel_w']['input_lim'],
+            ctrl_config['vel_p']['input_lim'],
+            ctrl_config['vel_q']['input_lim'],
+            ctrl_config['vel_r']['input_lim'],
+        ])
+
 
     def update(self, position, velocity):
         # store nav updates
@@ -425,7 +434,7 @@ class AutoTuningController(CascadedController):
 
 
         # velocity errors
-        self.err_vel = self.vel - self.req_vel
+        self.err_vel = np.clip(self.vel - self.req_vel, -self.vel_input_lim, self.vel_input_lim)
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
         self.err_vel_der = (self.err_vel - self.err_vel_prev) / self.dt
         self.err_vel_prev = self.err_vel
