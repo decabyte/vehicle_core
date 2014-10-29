@@ -12,7 +12,7 @@ pilot:
     controller:
         # general options
         type: 'autotuning'
-        model_based: false
+        model_based: true
 
         # position limits
         pos_x: { lim: 0.1 }
