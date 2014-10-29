@@ -4,9 +4,9 @@ pilot:
     prioritize_axis: true
 
     # thruster mapping
-    adaptive_yaw: false
-    threshold_fast: 0.5
-    threshold_slow: 0.1
+    adaptive_yaw: true
+    threshold_fast: 0.1
+    threshold_slow: 0.05
 
     # fault tolerant control
     fault_control: false

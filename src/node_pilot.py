@@ -217,6 +217,10 @@ class VehiclePilot(object):
         self.thres_fast_speed = np.clip(self.thres_fast_speed, 0, MAX_SPEED[0])
         self.thres_slow_speed = np.clip(self.thres_slow_speed, 0, MAX_SPEED[0])
 
+        # alpha mapping for mixing thruster allocation matrices
+        self.speed_m = 1.0 / np.abs(self.thres_fast_speed - self.thres_slow_speed)
+        self.speed_q = -self.speed_m * self.thres_slow_speed
+
         if self.thres_fast_speed <= self.thres_slow_speed:
             self.adaptive_yaw = False
 
@@ -553,7 +557,7 @@ class VehiclePilot(object):
 
         # assign a different cost to lateral thrusters depending on forward speed
         #   thruster allocation algorithm will reduce the use of lateral thrusters for yawing at high speeds
-        if self.adaptive_yaw and np.all(self.thruster_efficiency[0:2] == 1):
+        if self.adaptive_yaw: #and np.all(self.thruster_efficiency[0:2] == 1):
             alpha = self.speed_m * self.vel[0] + self.speed_q
             alpha = np.clip(alpha, 0, 1)
 
