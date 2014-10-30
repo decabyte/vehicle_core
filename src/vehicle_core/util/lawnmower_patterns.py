@@ -10,7 +10,7 @@ from __future__ import division
 import numpy as np
 from numpy import cos, sin
 
-from vehicle_core.util import trajectory_tools as tg
+import trajectory_tools as tg
 
 
 def pattern_from_rect(width, height, delta=0.0, start=0):
@@ -183,10 +183,10 @@ if __name__ == '__main__':
     np.set_printoptions(precision=3, suppress=True)     # reduce numpy output length
 
     area = np.array([
-        [60,0,0],            # A
-        [60,60,0],           # B
-        [0,60,0],         # C
-        [0,0,0]           # D
+        [4.4, -9.8, 1.0],            # A
+        [4.4, -1.8, 1.0],           # B
+        [1.0, -1.8, 1.0],         # C
+        [1.0, -9.8, 1.0]           # D
     ])
 
     # # rotation case
@@ -198,24 +198,30 @@ if __name__ == '__main__':
     # ])
 
     # sonar parameters
-    sonar_field = 5        # meters
-    sonar_overlap = 0       # 0 to 1
+    sonar_field = 1        # meters
+    sonar_overlap = 0      # 0 to 1
 
     # get global points
-    # (fixes_a, n_cols) = pattern_from_ned(area, start=0, spacing=sonar_field, overlap=sonar_overlap)
+    (fixes_a, n_cols) = pattern_from_ned(area, start=0, spacing=sonar_field, overlap=sonar_overlap)
     # print(fixes_d)
 
     # (fixes_b, n_cols) = pattern_from_ned(area, start=1, spacing=sonar_field, overlap=sonar_overlap)
     # print(fixes_d)
 
-    # (fixes_c, n_cols) = pattern_from_ned(area, start=2, spacing=sonar_field, overlap=sonar_overlap)
-    # print(fixes_d)
+    #(fixes_c, n_cols) = pattern_from_ned(area, start=2, spacing=sonar_field, overlap=sonar_overlap)
+    #print(fixes_c)
 
-    (fixes_d, n_cols) = pattern_from_ned(area, start=3, spacing=sonar_field, overlap=sonar_overlap)
-    print(fixes_d)
+    #(fixes_d, n_cols) = pattern_from_ned(area, start=3, spacing=sonar_field, overlap=sonar_overlap)
+    #print(fixes_d)
 
-    tg.plot_trajectory(fixes_d)
+    tg.plot_trajectory(fixes_a)
     plt.show()
+
+    import json
+    data = dict()
+    data['points'] = fixes_a.tolist()
+
+    print(json.dumps(data))
 
 
     # import matplotlib.pyplot as plt
