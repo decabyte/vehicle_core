@@ -111,6 +111,11 @@ class CascadedController(VehicleController):
         self.err_vel_der = np.zeros(6)
         self.err_vel_int = np.zeros(6)
 
+        self.err_intermediate = 0.0
+        self.err_intermediate_prev = 0.0
+        self.err_intermediate_der = 0.0
+        self.err_intermediate_int = 0.0
+
         # init jacobians matrices
         self.J = np.zeros((6,6))     # jacobian matrix (translate velocity from body referenced to Earth referenced)
         self.J_inv = np.zeros((6,6)) # inverse jacobian matrix
@@ -259,6 +264,13 @@ class CascadedController(VehicleController):
 
         # second pid output
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
+
+        # velocity depth control based on pitch control
+        self.err_intermediate = np.clip(self.pos[4] - self.tau_ctrl[2], -self.vel_input_lim[4], self.vel_input_lim[4])
+        self.err_intermediate_der = (self.err_intermediate - self.err_intermediate_prev) / self.dt
+        self.err_intermediate_int = np.clip(self.err_intermediate_int + self.err_intermediate, -self.vel_lim[4], self.vel_lim[4])
+        self.err_intermediate_prev = self.err_intermediate
+        self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
 
 
         # trimming forces: add offsets from config (if any)
