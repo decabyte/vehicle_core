@@ -96,6 +96,7 @@ class CascadedController(VehicleController):
         self.offset_z = 0.0
         self.offset_m = 0.0
         self.model_based = False
+        self.depth_pitch_control = False
 
         # intermediate requests
         self.req_vel = np.zeros(6)
@@ -131,6 +132,9 @@ class CascadedController(VehicleController):
 
         # vehicle model
         self.model_based = bool(ctrl_config.get('model_based', False))
+
+        # depth pitch control
+        self.depth_pitch_control = bool(ctrl_config.get('depth_pitch_control', False))
 
         if self.model_based:
             self.model = vm.VehicleModel(model_config)
@@ -265,12 +269,13 @@ class CascadedController(VehicleController):
         # second pid output
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
 
-        # velocity depth control based on pitch control
-        self.err_intermediate = np.clip(self.pos[4] - self.tau_ctrl[2], -self.vel_input_lim[4], self.vel_input_lim[4])
-        self.err_intermediate_der = (self.err_intermediate - self.err_intermediate_prev) / self.dt
-        self.err_intermediate_int = np.clip(self.err_intermediate_int + self.err_intermediate, -self.vel_lim[4], self.vel_lim[4])
-        self.err_intermediate_prev = self.err_intermediate
-        self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
+        if self.depth_pitch_control == False:
+            # velocity depth control based on pitch control
+            self.err_intermediate = np.clip(self.pos[4] - self.tau_ctrl[2], -self.vel_input_lim[4], self.vel_input_lim[4])
+            self.err_intermediate_der = (self.err_intermediate - self.err_intermediate_prev) / self.dt
+            self.err_intermediate_int = np.clip(self.err_intermediate_int + self.err_intermediate, -self.vel_lim[4], self.vel_lim[4])
+            self.err_intermediate_prev = self.err_intermediate
+            self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
 
 
         # trimming forces: add offsets from config (if any)

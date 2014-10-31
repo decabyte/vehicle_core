@@ -17,6 +17,7 @@ pilot:
         # general options
         type: 'cascaded'
         model_based: true
+        depth_pitch_control: false
 
         model:
             compensate_mass: true
