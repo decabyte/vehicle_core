@@ -74,7 +74,7 @@ SRV_FAULT_SPEEDS = 'pilot/fault_speeds'     # enable/disable the adaptive fault 
 TOPIC_GAINS = 'controller/gains'
 
 
-THRESH_METRIC = np.array([0.9, 10, 10, 0.9, 10, 10])        # threshold for thrusters diagnostic metric
+THRESH_METRIC = np.array([0.9, 10, 10, 10.0, 10, 10])        # threshold for thrusters diagnostic metric
 W_ADPT_RATE = 0.01                                          # thruster weight adaptation rate
 W_THRS = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])           # thruster exclusion threshold (fraction of reference design)
 
@@ -577,7 +577,8 @@ class VehiclePilot(object):
 
             # avoid divisions by zero
             for dof in np.argwhere(tc.MAX_U != 0):
-                self.lim_vel_ctrl[dof] = MAX_SPEED * np.sqrt(self.available_forces[dof] / tc.MAX_U[dof])
+                ratio = self.available_forces[dof] / tc.MAX_U[dof]
+                self.lim_vel_ctrl[dof] = MAX_SPEED * np.power(ratio, 3.0 / 2.0)
 
             self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, 0, MAX_SPEED)
 
