@@ -76,7 +76,7 @@ TOPIC_GAINS = 'controller/gains'
 
 THRESH_METRIC = np.array([0.9, 10, 10, 0.9, 10, 10])        # threshold for thrusters diagnostic metric
 W_ADPT_RATE = 0.01                                          # thruster weight adaptation rate
-W_THRS = np.array([0.3, 0.3, 0.3, 0.3, 0.3, 0.3])           # thruster exclusion threshold (% of reference design)
+W_THRS = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])           # thruster exclusion threshold (fraction of reference design)
 
 
 # utils

@@ -269,12 +269,14 @@ class CascadedController(VehicleController):
         # second pid output
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
 
-        if self.depth_pitch_control == False:
-            # velocity depth control based on pitch control
+
+        # velocity depth control based on pitch control
+        if self.depth_pitch_control:
             self.err_intermediate = np.clip(self.pos[4] - self.tau_ctrl[2], -self.vel_input_lim[4], self.vel_input_lim[4])
             self.err_intermediate_der = (self.err_intermediate - self.err_intermediate_prev) / self.dt
             self.err_intermediate_int = np.clip(self.err_intermediate_int + self.err_intermediate, -self.vel_lim[4], self.vel_lim[4])
             self.err_intermediate_prev = self.err_intermediate
+
             self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
 
 
