@@ -5,7 +5,7 @@ pilot:
 
     # thruster mapping
     adaptive_yaw: true
-    threshold_fast: 0.5
+    threshold_fast: 0.2
     threshold_slow: 0.1
 
     # cascaded pid parameters

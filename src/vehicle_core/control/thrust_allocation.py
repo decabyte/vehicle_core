@@ -72,6 +72,7 @@ def saturation_allocation(tau_request, inv_TAM):
     return forces
 
 
+# TODO: make the list of priorities a function argument and improve comments
 def priority_allocation(tau_request, inv_TAM):
     """This functions assures that priority among degrees of freedom is respected.
 

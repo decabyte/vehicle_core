@@ -5,8 +5,8 @@ pilot:
 
     # thruster mapping
     adaptive_yaw: true
-    threshold_fast: 0.1
-    threshold_slow: 0.05
+    threshold_fast: 0.2
+    threshold_slow: 0.1
 
     # fault tolerant control
     fault_control: false

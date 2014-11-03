@@ -559,7 +559,7 @@ class VehiclePilot(object):
 
         # assign a different cost to lateral thrusters depending on forward speed
         #   thruster allocation algorithm will reduce the use of lateral thrusters for yawing at high speeds
-        #   not active if fault mitigation is active
+        #   not active if fault mitigation is active (cause it would interfere with the mappings)
         if self.adaptive_yaw and not self.fault_control:
             alpha = self.speed_m * self.vel[0] + self.speed_q
             alpha = np.clip(alpha, 0, 1)
