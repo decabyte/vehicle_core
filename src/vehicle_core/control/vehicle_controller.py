@@ -448,6 +448,10 @@ class AutoTuningController(CascadedController):
         self.pos_Ki = np.clip(self.pos_Ki, -self.adapt_limit_pos[1], self.adapt_limit_pos[1])
         self.pos_Kd = np.clip(self.pos_Kd, -self.adapt_limit_pos[2], self.adapt_limit_pos[2])
 
+        # Position integral terms set to zero to avoid oscillations
+        pos_changed = np.sign(self.err_pos) != np.sign(self.err_pos_prev)
+        pos_changed[2] = False  # ignore the depth
+        self.err_pos_int[pos_changed] = 0.0
 
         # PI controller limited (outer loop on position) - velocity
         self.req_vel = (-np.abs(self.pos_Kp) * self.err_pos) + (-np.abs(self.pos_Ki) * self.err_pos_int) + (-np.abs(self.pos_Kd) * self.err_pos_der)
@@ -476,6 +480,10 @@ class AutoTuningController(CascadedController):
         self.vel_Ki = np.clip(self.vel_Ki, -self.adapt_limit_vel[1], self.adapt_limit_vel[1])
         self.vel_Kd = np.clip(self.vel_Kd, -self.adapt_limit_vel[2], self.adapt_limit_vel[2])
 
+         # Velocity integral terms set to zero to avoid oscillations
+        vel_changed = np.sign(self.err_vel) != np.sign(self.err_vel_prev)
+        vel_changed[2] = False  # ignore the depth
+        self.err_vel_int[vel_changed] = 0.0
 
         # PI controller velocity
         self.tau_ctrl = (-np.abs(self.vel_Kp) * self.err_vel) + (-np.abs(self.vel_Ki) * self.err_vel_int) + (-np.abs(self.vel_Kd) * self.err_vel_der)
