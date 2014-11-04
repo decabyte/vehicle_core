@@ -344,20 +344,47 @@ class AutoTuningController(CascadedController):
 
 
     def update_config(self, ctrl_config, model_config):
-        # trimming offsets
-        self.offset_z = float(ctrl_config.get('offset_z', 0.0))
-        self.offset_m = float(ctrl_config.get('offset_m', 0.0))
+        # # trimming offsets
+        # self.offset_z = float(ctrl_config.get('offset_z', 0.0))
+        # self.offset_m = float(ctrl_config.get('offset_m', 0.0))
+        #
+        # # vehicle model
+        # self.model_based = bool(ctrl_config.get('model_based', False))
+        #
+        # if self.model_based:
+        #     self.model = vm.VehicleModel(model_config)
+        #
+        # self.pos_lim = np.array([
+        #     ctrl_config['pos_x']['lim'],
+        #     ctrl_config['pos_y']['lim'],
+        #     ctrl_config['pos_z']['lim'],
+        #     ctrl_config['pos_k']['lim'],
+        #     ctrl_config['pos_m']['lim'],
+        #     ctrl_config['pos_n']['lim'],
+        # ])
+        #
+        # self.vel_lim = np.array([
+        #     ctrl_config['vel_u']['lim'],
+        #     ctrl_config['vel_v']['lim'],
+        #     ctrl_config['vel_w']['lim'],
+        #     ctrl_config['vel_p']['lim'],
+        #     ctrl_config['vel_q']['lim'],
+        #     ctrl_config['vel_r']['lim'],
+        # ])
+        #
+        # self.vel_input_lim = np.array([
+        #     ctrl_config['vel_u']['input_lim'],
+        #     ctrl_config['vel_v']['input_lim'],
+        #     ctrl_config['vel_w']['input_lim'],
+        #     ctrl_config['vel_p']['input_lim'],
+        #     ctrl_config['vel_q']['input_lim'],
+        #     ctrl_config['vel_r']['input_lim'],
+        # ])
 
-        # vehicle model
-        self.model_based = bool(ctrl_config.get('model_based', False))
-
-        if self.model_based:
-            self.model = vm.VehicleModel(model_config)
-
+        # load parameters from default controller
+        super(AutoTuningController, self).update_config(ctrl_config, model_config)
 
         # adaptation coefficients
-        self.alpha = float(ctrl_config.get('adapt_alpha', 0.0))
-
         self.adapt_coeff_pos = np.array([
             ctrl_config['adapt_coeff_pos']['x'],
             ctrl_config['adapt_coeff_pos']['y'],
@@ -386,33 +413,6 @@ class AutoTuningController(CascadedController):
             ctrl_config['adapt_limit_vel']['p'],
             ctrl_config['adapt_limit_vel']['i'],
             ctrl_config['adapt_limit_vel']['d']
-        ])
-
-        self.pos_lim = np.array([
-            ctrl_config['pos_x']['lim'],
-            ctrl_config['pos_y']['lim'],
-            ctrl_config['pos_z']['lim'],
-            ctrl_config['pos_k']['lim'],
-            ctrl_config['pos_m']['lim'],
-            ctrl_config['pos_n']['lim'],
-        ])
-
-        self.vel_lim = np.array([
-            ctrl_config['vel_u']['lim'],
-            ctrl_config['vel_v']['lim'],
-            ctrl_config['vel_w']['lim'],
-            ctrl_config['vel_p']['lim'],
-            ctrl_config['vel_q']['lim'],
-            ctrl_config['vel_r']['lim'],
-        ])
-
-        self.vel_input_lim = np.array([
-            ctrl_config['vel_u']['input_lim'],
-            ctrl_config['vel_v']['input_lim'],
-            ctrl_config['vel_w']['input_lim'],
-            ctrl_config['vel_p']['input_lim'],
-            ctrl_config['vel_q']['input_lim'],
-            ctrl_config['vel_r']['input_lim'],
         ])
 
 
