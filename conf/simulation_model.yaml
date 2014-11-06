@@ -28,12 +28,12 @@ sim:
 
         mass: 60.0                  # kg
         weight: 588.6               # N
-        buoyancy: 593.6             # N
+        buoyancy: 589.6             # N (was 593.6 in simulation)
 
         water_rho: 1025.0           # density (salt water) (kg/m^3)
 
-        cog: [0.00, 0.00, 0.03]     # center of gravity
-        cob: [0.00, 0.00, -0.03]    # center of buoyancy
+        cog: [0.00, 0.00, 0.06]   # center of gravity
+        cob: [0.00, 0.00, 0.00]     # center of buoyancy
 
         # quadratic drag coefficients (approximation for underwater vehicles)
         #   [x_uu, y_vv, z_ww, k_pp, m_qq, n_rr]

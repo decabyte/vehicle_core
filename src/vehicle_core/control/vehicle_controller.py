@@ -278,11 +278,17 @@ class CascadedController(VehicleController):
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
 
         # linearized the plant is its model and the sensor measurements
-        #   enabled only if the feedforward controller is not used!
+        #   enabled only if the feed-forward controller is not used!
         if self.linearized_model and not self.feedforward_model:
             # calculate the acceleration due to the dynamic coupling forces acting on the vehicle using the sensors'
             # measurements without including the tau term (set to zero in this case)
-            pass
+
+            # use the output of the pid as an acceleration
+            self.acc = self.tau_ctrl
+            print('acc: %s' % self.acc)
+
+            # rewrite the requested force using the dynamical model for linearizing the plant
+            self.tau_ctrl = self.model.update_tau(self.pos, self.vel, self.acc)
 
 
         # # velocity depth control based on pitch control

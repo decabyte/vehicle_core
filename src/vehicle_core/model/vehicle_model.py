@@ -19,10 +19,9 @@ NOTES:
 from __future__ import division
 
 import numpy as np
-
-from vehicle_core.model import dynamic_model as dm
-
 np.set_printoptions(precision=3, suppress=True)
+
+import dynamic_model as dm
 
 
 class VehicleModel(object):
@@ -198,19 +197,30 @@ if __name__ == '__main__':
     tau = np.zeros(6)
     pos = np.zeros(6)
     vel = np.zeros(6)
+    acc = np.zeros(6)
 
-    # compute model acceleration (apply 10 Newtons in surge while being on the surface)
-    tau[0] = 10
-    acc = vm.update_acceleration(tau, pos, vel)
-
-    print('Accelerations:')
-    print(acc)
-    print('')
-
-    # compute model hydrodynamic forces (while being at given depth)
-    pos[2] = 10
-    forces = vm.update_forward_model(pos, vel)
+    # test linearization
+    acc[0] = 0.250
+    tau = vm.update_tau(pos, vel, acc)
+    sim = vm.update_acceleration(tau, pos, vel)
 
     print('Forces:')
-    print(forces)
-    print('')
+    print(tau)
+    print(sim)
+    print()
+
+    # # compute model acceleration (apply 10 Newtons in surge while being on the surface)
+    # tau[0] = 10
+    # acc = vm.update_acceleration(tau, pos, vel)
+    #
+    # print('Accelerations:')
+    # print(acc)
+    # print('')
+    #
+    # # compute model hydrodynamic forces (while being at given depth)
+    # pos[2] = 10
+    # forces = vm.update_forward_model(pos, vel)
+    #
+    # print('Forces:')
+    # print(forces)
+    # print('')

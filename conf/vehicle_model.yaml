@@ -32,8 +32,8 @@ vehicle:
 
         water_rho: 1025.0           # density (salt water) (kg/m^3)
 
-        cog: [-0.008, 0.00, 0.01]     # center of gravity
-        cob: [0.00, 0.00, -0.01]     # center of buoyancy
+        cog: [-0.008, 0.00, 0.02]   # center of gravity
+        cob: [0.00, 0.00, 0.00]     # center of buoyancy
 
         # quadratic drag coefficients (approximation for underwater vehicles)
         #   [x_uu, y_vv, z_ww, k_pp, m_qq, n_rr]

@@ -78,11 +78,7 @@ class NavigationSimulator(object):
         # state
         self.depth_bottom = kwargs.get('depth_bottom', 50)
         self.tau = np.zeros(6)
-
-        # (old) config
-        #self.dynamic_buoyancy = kwargs.get('dynamic_buoyancy', False)
-        #self.added_coriolis = kwargs.get('added_coriolis', False)
-        #self.model = dm.DynamicModel(dynamic_buoyancy=self.dynamic_buoyancy, added_coriolis=self.added_coriolis)
+        self.t = 0.0
 
         # dynamic model
         self.model_config = rospy.get_param('sim/model', dict())
@@ -326,9 +322,10 @@ class NavigationSimulator(object):
         self.int_velocity_verlet()
 
         # # RK4 integration
-        #self.t, self.rk4_state = self.rk4(self.t, self.dt, self.rk4_state, self.rk4_derivative)
-        #self.vel = self.rk4_state[6:12]     # velocity and position are already in body frame
-        #self.pos = self.rk4_state[0:6]      # position is the integration of the velocity in body frame (for RK4)
+        # self.t += self.dt
+        # self.t, self.rk4_state = self.rk4(self.t, self.dt, self.rk4_state, self.rk4_derivative)
+        # self.vel = self.rk4_state[6:12]     # velocity and position are already in body frame
+        # self.pos = self.rk4_state[0:6]      # position is the integration of the velocity in body frame (for RK4)
 
         # wrap angles and limit pitch (-90 / 90)
         self.pos[3:6] = wrap_pi(self.pos[3:6])
@@ -362,14 +359,13 @@ class NavigationSimulator(object):
     def __str__(self):
         return """nav_sim:
           tau:   %s
-          F_hydro: %s
           F_net: %s
           acc:   %s
           vel:   %s
           pos:   %s %s
           altitude: %s
         """ % (
-            self.tau, self.model.F_model, self.model.F_net,
+            self.tau, self.model.F_net,
             self.acc, self.vel, self.pos[0:3], np.rad2deg(self.pos[3:6]), self.depth_bottom
         )
 
