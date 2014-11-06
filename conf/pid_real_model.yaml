@@ -16,24 +16,8 @@ pilot:
     controller:
         # general options
         type: 'cascaded'
-        feedforward_model: false
-        linearized_model: true
-
-        # # position gains
-        # pos_x: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 4 m
-        # pos_y: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 2 m
-        # pos_z: { kp: 0.50, ki: 0.05, kd: 0.0, lim: 0.1 }
-        # pos_k: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 0.0 }
-        # pos_m: { kp: 0.785, ki: 0.00, kd: 0.0, lim: 1.0 }         # 4 / pi --> max out at 45 deg
-        # pos_n: { kp: 0.63661, ki: 0.0, kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
-
-        # # velocity gains
-        # vel_u: { kp: 40.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
-        # vel_v: { kp: 30.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
-        # vel_w: { kp: 60.0, ki: 0.5, kd: 0.0, lim: 8.0, input_lim: 1 }
-        # vel_p: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 0.1, input_lim: 1 }
-        # vel_q: { kp: 1.0, ki: 0.01, kd: 1.0, lim: 8.0, input_lim: 1 }
-        # vel_r: { kp: 30.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
+        feedforward_model: true
+        linearized_model: false
 
         # position gains
         pos_x: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 4 m
@@ -44,12 +28,29 @@ pilot:
         pos_n: { kp: 0.63661, ki: 0.0, kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
 
         # velocity gains
-        vel_u: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
-        vel_v: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
-        vel_w: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
-        vel_p: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
-        vel_q: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
-        vel_r: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
+        vel_u: { kp: 40.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        vel_v: { kp: 30.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
+        vel_w: { kp: 60.0, ki: 0.5, kd: 0.0, lim: 8.0, input_lim: 1 }
+        vel_p: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 0.1, input_lim: 1 }
+        vel_q: { kp: 1.0, ki: 0.01, kd: 1.0, lim: 8.0, input_lim: 1 }
+        vel_r: { kp: 30.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
+
+        # LINEARIZED VERSION
+        # # position gains
+        # pos_x: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 4 m
+        # pos_y: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 2 m
+        # pos_z: { kp: 0.50, ki: 0.05, kd: 0.0, lim: 0.1 }
+        # pos_k: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 0.0 }
+        # pos_m: { kp: 0.785, ki: 0.00, kd: 0.0, lim: 1.0 }         # 4 / pi --> max out at 45 deg
+        # pos_n: { kp: 0.63661, ki: 0.0, kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
+
+        # # velocity gains
+        # vel_u: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        # vel_v: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
+        # vel_w: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
+        # vel_p: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
+        # vel_q: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
+        # vel_r: { kp: 0.0250, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
 
         # depth compensation (takes into account trimming)
         offset_z: 4.0       # depth trim (WARNING: these values are in Newtons)
