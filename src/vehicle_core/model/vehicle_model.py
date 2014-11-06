@@ -70,10 +70,10 @@ class VehicleModel(object):
 
         # forces
         self.F_net = np.zeros(6)        # total net force acting on the vehicle
-        self.F_model = np.zeros(6)      # total hydrodynamic forces acting on the vehicle
-        # self.F_C = np.zeros(6)          # coriolis forces
-        # self.F_D = np.zeros(6)          # damping forces
-        # self.F_G = np.zeros(6)          # restoring forces
+        #self.F_model = np.zeros(6)      # total hydrodynamic forces acting on the vehicle
+        # self.F_C = np.zeros(6)         # coriolis forces
+        # self.F_D = np.zeros(6)         # damping forces
+        # self.F_G = np.zeros(6)         # restoring forces
 
 
         # calculate added terms based on cylindrical shape
@@ -115,34 +115,66 @@ class VehicleModel(object):
         self.inv_M = np.linalg.inv(self.M)
 
 
-    def update_model(self, pos, vel):
-        """Updates the model's forces based on the provided position and velocity vectors.
+    def update_forward_model(self, pos, vel):
+        """Calculates the forward model forces based on the provided position and velocity vector using the acceleration
+        approximation used in literature in order to allow the use of feed-forward controllers.
 
-        This functions uses if available the optimized version of the dynamic model, loading the .so file, providing
-        a fast computation despite its long list of parameters. It also stores the last computed value as an object
-        attribute for later inspection or verbose printing.
+        If available this functions uses the optimized version of the dynamic model, loading the .so file, providing
+        a fast computation despite its long list of parameters.
 
         :param pos: current position of the vehicle [x,y,z,k,m,n]   (in meters and radians)
         :param vel: current velocity of the vehicle [u,v,w,p,q,r]   (in m/s and rad/s)
         :return: numpy.ndarray of shape (6,) with forces acting in body-frame [X,Y,Z,K,M,N]
         """
 
-        self.F_model = dm.calc_model_forces(
+        return dm.calc_model_forward(
             pos, vel, self.cog, self.cob, self.mass, self.inertia, self.W, self.B,
             self.M, self.added_terms, self.quadratic_drag
         )
 
-        return self.F_model
+
+    def update_tau(self, pos, vel, acc):
+        """Calculates the tau given the requested acceleration, the actual position and velocities, including the dynamics
+        of the vehicle using the model parameters. It can be used for linearizing the feedback loop in the vehicle controller.
+
+        If available this functions uses the optimized version of the dynamic model, loading the .so file, providing
+        a fast computation despite its long list of parameters.
+
+        :param pos: current position of the vehicle [x,y,z,k,m,n]   (in meters and radians)
+        :param vel: current velocity of the vehicle [u,v,w,p,q,r]   (in m/s and rad/s)
+        :param acc: requested acceleration of the vehicle [udot,vdot,wdot,pdot,qdot,rdot]   (in m/s^2 and rad/s^2)
+        :return: numpy.ndarray of shape (6,) with forces acting in body-frame [X,Y,Z,K,M,N]
+        """
+
+        return np.dot(self.M, acc) + dm.calc_other_forces(
+            pos, vel, self.cog, self.cob, self.mass, self.inertia, self.W, self.B,
+            self.added_terms, self.quadratic_drag
+        )
+
 
     def update_acceleration(self, tau, pos, vel):
+        """Calculates the acceleration using inverse model, given the input force and the current position and velocities.
+
+        If available this functions uses the optimized version of the dynamic model, loading the .so file, providing
+        a fast computation despite its long list of parameters. It also stores the last computed value as an object
+        attribute for later inspection or verbose printing.
+
+        :param tau: input vector with forces acting in body-frame [X,Y,Z,K,M,N]
+        :param pos: current position of the vehicle [x,y,z,k,m,n]   (in meters and radians)
+        :param vel: current velocity of the vehicle [u,v,w,p,q,r]   (in m/s and rad/s)
+        :return: computed acceleration of the vehicle [udot,vdot,wdot,pdot,qdot,rdot]   (in m/s^2 and rad/s^2)
+        """
+
         # dynamic equation (compute total force)
-        self.F_net = tau - self.update_model(pos, vel)
+        self.F_net = tau - self.update_forward_model(pos, vel)
 
         # calculate acceleration from forces
         return np.dot(self.inv_M, self.F_net)
 
+
     def __str__(self):
         pass
+
 
 
 if __name__ == '__main__':
@@ -152,7 +184,7 @@ if __name__ == '__main__':
     pp = pprint.PrettyPrinter(indent=2)
     model_config = dict()
 
-    with open('../launch/vehicle_model.yaml', 'r') as conf:
+    with open('../../../conf/vehicle_model.yaml', 'r') as conf:
         input_config = yaml.load(conf)
         model_config.update(input_config['vehicle']['model'])
 
@@ -177,7 +209,7 @@ if __name__ == '__main__':
 
     # compute model hydrodynamic forces (while being at given depth)
     pos[2] = 10
-    forces = vm.update_model(pos, vel)
+    forces = vm.update_forward_model(pos, vel)
 
     print('Forces:')
     print(forces)

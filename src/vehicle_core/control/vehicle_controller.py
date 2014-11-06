@@ -95,7 +95,8 @@ class CascadedController(VehicleController):
 
         self.offset_z = 0.0
         self.offset_m = 0.0
-        self.model_based = False
+        self.feedforward_model = False
+        self.linearized_model = False
         self.depth_pitch_control = False
 
         # intermediate requests
@@ -121,9 +122,6 @@ class CascadedController(VehicleController):
         self.J = np.zeros((6,6))     # jacobian matrix (translate velocity from body referenced to Earth referenced)
         self.J_inv = np.zeros((6,6)) # inverse jacobian matrix
 
-        # load controller configuration
-        #self.update_config(ctrl_config, model_config)
-
 
     def update_config(self, ctrl_config, model_config):
         # trimming offsets
@@ -131,12 +129,13 @@ class CascadedController(VehicleController):
         self.offset_m = float(ctrl_config.get('offset_m', 0.0))
 
         # vehicle model
-        self.model_based = bool(ctrl_config.get('model_based', False))
+        self.feedforward_model = bool(ctrl_config.get('feedforward_model', False))
+        self.linearized_model = bool(ctrl_config.get('linearized_model', False))
 
         # depth pitch control
-        self.depth_pitch_control = bool(ctrl_config.get('depth_pitch_control', False))
+        #self.depth_pitch_control = bool(ctrl_config.get('depth_pitch_control', False))
 
-        if self.model_based:
+        if self.feedforward_model or self.linearized_model:
             self.model = vm.VehicleModel(model_config)
 
         # pid parameters (position)
@@ -270,7 +269,7 @@ class CascadedController(VehicleController):
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
         self.err_vel_prev = self.err_vel
 
-        # Velocity integral terms set to zero to avoid oscillations
+        # velocity integral terms set to zero to avoid oscillations
         vel_changed = np.sign(self.err_vel) != np.sign(self.err_vel_prev)
         vel_changed[2] = False  # ignore the depth
         self.err_vel_int[vel_changed] = 0.0
@@ -278,27 +277,35 @@ class CascadedController(VehicleController):
         # second pid output
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
 
+        # linearized the plant is its model and the sensor measurements
+        #   enabled only if the feedforward controller is not used!
+        if self.linearized_model and not self.feedforward_model:
+            # calculate the acceleration due to the dynamic coupling forces acting on the vehicle using the sensors'
+            # measurements without including the tau term (set to zero in this case)
+            pass
 
-        # velocity depth control based on pitch control
-        if self.depth_pitch_control:
-            self.err_intermediate = np.clip(self.pos[4] - self.tau_ctrl[2], -self.vel_input_lim[4], self.vel_input_lim[4])
-            self.err_intermediate_der = (self.err_intermediate - self.err_intermediate_prev) / self.dt
-            self.err_intermediate_int = np.clip(self.err_intermediate_int + self.err_intermediate, -self.vel_lim[4], self.vel_lim[4])
-            self.err_intermediate_prev = self.err_intermediate
 
-            self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
+        # # velocity depth control based on pitch control
+        # if self.depth_pitch_control:
+        #     self.err_intermediate = np.clip(self.pos[4] - self.tau_ctrl[2], -self.vel_input_lim[4], self.vel_input_lim[4])
+        #     self.err_intermediate_der = (self.err_intermediate - self.err_intermediate_prev) / self.dt
+        #     self.err_intermediate_int = np.clip(self.err_intermediate_int + self.err_intermediate, -self.vel_lim[4], self.vel_lim[4])
+        #     self.err_intermediate_prev = self.err_intermediate
+        #
+        #     self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
 
 
         # trimming forces: add offsets from config (if any)
         self.tau_ctrl[2] += self.offset_z       # depth
         self.tau_ctrl[4] += self.offset_m       # pitch
 
-        # use vehicle model if enabled
-        if self.model_based:
-            self.tau_model = self.model.update_model(self.pos, self.vel)
+        # use feed-forward controller only if the linearized model is disabled
+        if self.feedforward_model and not self.linearized_model:
+            self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
             self.tau_model[3] = 0   # ignore roll
 
-            self.tau_ctrl = self.tau_ctrl - self.tau_model
+            # feed-forward controller
+            self.tau_ctrl = self.tau_ctrl + self.tau_model
 
         # hard limits on forces
         #   default: no roll allowed
@@ -308,6 +315,14 @@ class CascadedController(VehicleController):
 
 
     def __str__(self):
+        model = 'disabled'
+
+        if self.feedforward_model:
+            model = 'feedfoward'
+
+        if self.linearized_model:
+            model = 'linearized'
+
         return """%s
           model: %s
           req_v: %s
@@ -321,7 +336,8 @@ class CascadedController(VehicleController):
           tau_c: %s
         """ % (
             super(CascadedController, self).__str__(),
-            self.model_based, self.req_vel, self.lim_vel,
+            model,
+            self.req_vel, self.lim_vel,
             self.err_pos, self.err_pos_der, self.err_pos_int,
             self.err_vel, self.err_vel_der, self.err_vel_int,
             self.tau_ctrl
@@ -344,43 +360,6 @@ class AutoTuningController(CascadedController):
 
 
     def update_config(self, ctrl_config, model_config):
-        # # trimming offsets
-        # self.offset_z = float(ctrl_config.get('offset_z', 0.0))
-        # self.offset_m = float(ctrl_config.get('offset_m', 0.0))
-        #
-        # # vehicle model
-        # self.model_based = bool(ctrl_config.get('model_based', False))
-        #
-        # if self.model_based:
-        #     self.model = vm.VehicleModel(model_config)
-        #
-        # self.pos_lim = np.array([
-        #     ctrl_config['pos_x']['lim'],
-        #     ctrl_config['pos_y']['lim'],
-        #     ctrl_config['pos_z']['lim'],
-        #     ctrl_config['pos_k']['lim'],
-        #     ctrl_config['pos_m']['lim'],
-        #     ctrl_config['pos_n']['lim'],
-        # ])
-        #
-        # self.vel_lim = np.array([
-        #     ctrl_config['vel_u']['lim'],
-        #     ctrl_config['vel_v']['lim'],
-        #     ctrl_config['vel_w']['lim'],
-        #     ctrl_config['vel_p']['lim'],
-        #     ctrl_config['vel_q']['lim'],
-        #     ctrl_config['vel_r']['lim'],
-        # ])
-        #
-        # self.vel_input_lim = np.array([
-        #     ctrl_config['vel_u']['input_lim'],
-        #     ctrl_config['vel_v']['input_lim'],
-        #     ctrl_config['vel_w']['input_lim'],
-        #     ctrl_config['vel_p']['input_lim'],
-        #     ctrl_config['vel_q']['input_lim'],
-        #     ctrl_config['vel_r']['input_lim'],
-        # ])
-
         # load parameters from default controller
         super(AutoTuningController, self).update_config(ctrl_config, model_config)
 
@@ -398,9 +377,9 @@ class AutoTuningController(CascadedController):
             ctrl_config['adapt_coeff_vel']['u'],
             ctrl_config['adapt_coeff_vel']['v'],
             ctrl_config['adapt_coeff_vel']['w'],
-            ctrl_config['adapt_coeff_vel']['r'],
             ctrl_config['adapt_coeff_vel']['p'],
             ctrl_config['adapt_coeff_vel']['q'],
+            ctrl_config['adapt_coeff_vel']['r'],
         ])
 
         self.adapt_limit_pos = np.array([
@@ -493,12 +472,13 @@ class AutoTuningController(CascadedController):
         self.tau_ctrl[2] += self.offset_z       # depth
         self.tau_ctrl[4] += self.offset_m       # pitch
 
-        # use vehicle model if enabled
-        if self.model_based:
-            self.tau_model = self.model.update_model(self.pos, self.vel)
+        # use feed-forward controller only if the linearized model is disabled
+        if self.feedforward_model and not self.linearized_model:
+            self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
             self.tau_model[3] = 0   # ignore roll
 
-            self.tau_ctrl = self.tau_ctrl - self.tau_model
+            # feed-forward controller
+            self.tau_ctrl = self.tau_ctrl + self.tau_model
 
         # hard limits on forces
         #   default: no roll allowed
@@ -520,7 +500,3 @@ class AutoTuningController(CascadedController):
             self.pos_Kp, self.pos_Kd, self.pos_Ki,
             self.vel_Kp, self.vel_Kd, self.vel_Ki,
         )
-
-
-if __name__ == '__main__':
-    pass

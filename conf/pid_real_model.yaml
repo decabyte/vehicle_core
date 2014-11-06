@@ -16,12 +16,8 @@ pilot:
     controller:
         # general options
         type: 'cascaded'
-        model_based: true
-        depth_pitch_control: false
-
-        model:
-            compensate_mass: true
-            coriolis_added: true
+        feedforward_model: false
+        linearized_model: true
 
         # position gains
         pos_x: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 4 m
@@ -41,4 +37,4 @@ pilot:
 
         # depth compensation (takes into account trimming)
         offset_z: 4.0       # depth trim (WARNING: these values are in Newtons)
-        offset_m: 0.0      # pitch trim (CAUTION: high values are dangerous)
+        offset_m: 0.0       # pitch trim (CAUTION: high values are dangerous)
