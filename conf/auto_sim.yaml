@@ -16,29 +16,35 @@ pilot:
         linearized_model: false
 
 
-         # position gains
-        pos_x: { lim: 0.1 }        # max out at 8 m
-        pos_y: { lim: 0.1 }        # max out at 2 m
-        pos_z: { lim: 0.1 }
-        pos_k: { lim: 0.0 }
-        pos_m: { lim: 5.0 }         # 4 / pi --> max out at 45 deg
-        pos_n: { lim: 0.0 }        # 2 / pi --> max out at 90 deg
+        # position gains
+        pos_x: { kp: 0.250, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 8 m
+        pos_y: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 2 m
+        pos_z: { kp: 0.50, ki: 0.005, kd: 0.0, lim: 0.1 }
+        pos_k: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 0.0 }
+        pos_m: { kp: 0.95, ki: 0.0, kd: 0.0, lim: 2.5 }         # 4 / pi --> max out at 45 deg
+        pos_n: { kp: 0.63661, ki: 0.0, kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
 
         # velocity gains
-        vel_u: { lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
-        vel_v: { lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
-        vel_w: { lim: 4.0, input_lim: 1 }
-        vel_p: { lim: 0.1, input_lim: 1 }
-        vel_q: { lim: 1000.0, input_lim: 5.0 }
-        vel_r: { lim: 4.0, input_lim: 1 }
+        vel_u: { kp: 40.0, ki: 0.1, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        vel_v: { kp: 25.0, ki: 0.1, kd: 0.0, lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
+        vel_w: { kp: 60.0, ki: 0.5, kd: 0.0, lim: 4.0, input_lim: 1 }
+        vel_p: { kp: 0.00, ki: 0.0, kd: 0.0, lim: 0.1, input_lim: 1 }
+        vel_q: { kp: 10.95, ki: 0.4, kd: 5.5, lim: 2.5, input_lim: 5.0 }
+        vel_r: { kp: 35.0, ki: 0.0, kd: 0.0, lim: 1.0, input_lim: 1 }
 
         # adapt coefficients
         adapt_coeff_pos: { x: 0.5, y: 0.5, z: 0.5, k: 0.0, m: 1.0, n: 1.0 }
-        adapt_coeff_vel: { u: 2.5, v: 2.25, w: 0.5, p: 0.0, q: 0.15, r: 2.0}
+        adapt_coeff_vel: { u: 2.0, v: 1.0, w: 0.45, p: 0.0, q: 0.25, r: 1.0 }
 
-        adapt_limit_pos: { p: [1.2, 1.5, 1.0, 0.0, 0.75, 1.0],  i: [0.0, 0.0, 0.0, 0.0, 0.5, 0.0], d: [1.0, 1.0, 1.0, 0.0, 1.0, 1.0] }
-        adapt_limit_vel: { p: [70.0, 50.0, 40.0, 3.0, 20.0, 40.0], i: [0.2, 1.0, 0.75, 1.0, 0.0, 0.75], d: [0.125, 0.5, 0.5, 0.0, 0.0, 0.6]}
+        adapt_limit_pos: { p: [1.0, 1.0, 1.0, 0.0, 0.95, 1.0],  i: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0], d: [2.0, 0.5, 3.0, 0.0, 0.0, 1.0] }
+        adapt_limit_vel: { p: [40.0, 10.0, 40.0, 0.0, 10.5, 40.0], i: [0.75, 0.75, 0.5, 1.0, 0.4, 0.75], d: [0.0, 0.0, 0.0, 0.0, 5.5, 0.0]}
 
         # depth compensation (takes into account trimming)
-        offset_z: 5.0
+        offset_z: 0.0
         offset_m: 0.0
+
+        # pitch controller parameters
+        pitch_surge_coeff: 0.105
+        pitch_rest_coeff: 35.6
+
+

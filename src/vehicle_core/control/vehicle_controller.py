@@ -17,6 +17,7 @@ MODE_STATION = 2
 MAX_PITCH = np.deg2rad(60)                      # max pitch (rad)
 
 
+
 # utils
 def wrap_pi(angle):
     return ((angle + np.pi) % (2*np.pi)) - np.pi
@@ -97,11 +98,12 @@ class CascadedController(VehicleController):
         self.offset_m = 0.0
         self.feedforward_model = False
         self.linearized_model = False
-        self.depth_pitch_control = False
+
 
         # intermediate requests
         self.req_vel = np.zeros(6)
         self.tau_ctrl = np.zeros(6)
+        self.tau_prev = np.zeros(6)
 
         # errors
         self.err_pos = np.zeros(6)
@@ -132,6 +134,7 @@ class CascadedController(VehicleController):
         self.feedforward_model = bool(ctrl_config.get('feedforward_model', False))
         self.linearized_model = bool(ctrl_config.get('linearized_model', False))
 
+        #low-pass filter
         # depth pitch control
         #self.depth_pitch_control = bool(ctrl_config.get('depth_pitch_control', False))
 
@@ -317,6 +320,8 @@ class CascadedController(VehicleController):
         #   default: no roll allowed
         self.tau_ctrl[3] = 0.0
 
+        #self.tau_ctrl[4] = self.tau_ctrl[4] + 0.105 * np.abs(self.vel[0])*self.vel[0] + 35.6*np.sin(self.pos[4])
+
         return self.tau_ctrl
 
 
@@ -363,6 +368,10 @@ class AutoTuningController(CascadedController):
         self.adapt_coeff_vel = np.zeros(6)  # velocity
         self.adapt_limit_pos = np.zeros(3)
         self.adapt_limit_vel = np.zeros(3)
+        self.pitch_surge_coeff = 0.0
+        self.pitch_rest_coeff = 0.0
+        self.tau_ctrl_prev = np.zeros(6)
+
 
 
     def update_config(self, ctrl_config, model_config):
@@ -399,6 +408,10 @@ class AutoTuningController(CascadedController):
             ctrl_config['adapt_limit_vel']['i'],
             ctrl_config['adapt_limit_vel']['d']
         ])
+
+        # pitch controller parameters
+        self.pitch_surge_coeff = float(ctrl_config.get('pitch_surge_coeff', 0.0))
+        self.pitch_rest_coeff = float(ctrl_config.get('pitch_rest_coeff', 0.0))
 
 
     def update(self, position, velocity):
@@ -449,7 +462,6 @@ class AutoTuningController(CascadedController):
         # apply user velocity limits (if any)
         self.req_vel = np.clip(self.req_vel, -self.lim_vel, self.lim_vel)
 
-
         # velocity errors
         self.err_vel = np.clip(self.vel - self.req_vel, -self.vel_input_lim, self.vel_input_lim)
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
@@ -473,11 +485,6 @@ class AutoTuningController(CascadedController):
         # PI controller velocity
         self.tau_ctrl = (-np.abs(self.vel_Kp) * self.err_vel) + (-np.abs(self.vel_Ki) * self.err_vel_int) + (-np.abs(self.vel_Kd) * self.err_vel_der)
 
-
-        # trimming forces: add offsets from config (if any)
-        self.tau_ctrl[2] += self.offset_z       # depth
-        self.tau_ctrl[4] += self.offset_m       # pitch
-
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model and not self.linearized_model:
             self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
@@ -486,9 +493,28 @@ class AutoTuningController(CascadedController):
             # feed-forward controller
             self.tau_ctrl = self.tau_ctrl + self.tau_model
 
+        if self.linearized_model and not self.feedforward_model:
+            # calculate the acceleration due to the dynamic coupling forces acting on the vehicle using the sensors'
+            # measurements without including the tau term (set to zero in this case)
+
+            # use the output of the pid as an acceleration
+            self.acc = self.tau_ctrl
+
+            # rewrite the requested force using the dynamical model for linearizing the plant
+            self.tau_ctrl = self.model.update_tau(self.pos, self.vel, self.acc)
+
+            #TODO: remove system oscillations and add pitch control for linearized version
+
+
         # hard limits on forces
         #   default: no roll allowed
-        self.tau_ctrl[3] = 0.0
+        self.tau_ctrl[3] = 0.
+
+        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0])*self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
+
+        # trimming forces: add offsets from config (if any)
+        self.tau_ctrl[2] += self.offset_z       # depth
+        self.tau_ctrl[4] += self.offset_m       # pitch
 
         return self.tau_ctrl
 
