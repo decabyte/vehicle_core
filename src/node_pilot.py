@@ -28,8 +28,8 @@ from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatS
 DEFAULT_RATE = 10                           # Hz
 STATUS_RATE = 2                             # Hz
 
-MAX_PITCH = np.deg2rad(60)                      # max pitch (rad)
-MAX_SPEED = np.array([1.5, 1, 1, 0, 2, 2])      # max speed (m/s and rad/s)
+MAX_PITCH = np.deg2rad(60.0)                            # max pitch (rad)
+MAX_SPEED = np.array([1.0, 0.6, 0.6, 0.0, 2.0, 2.0])    # max speed (m/s and rad/s)
 
 
 # controller status
