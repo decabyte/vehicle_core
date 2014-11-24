@@ -6,6 +6,7 @@
     <!-- load the simulation config -->
     <rosparam command="load" file="$(find vehicle_core)/conf/nav_config.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
+    <rosparam command="load" file="$(find vehicle_core)/conf/thruster_model.yaml"/>
 
     <!-- start the simulated thrusters -->
     <node name="thrusters_simulator" pkg="vehicle_core" type="node_thruster_sim.py" output="screen">

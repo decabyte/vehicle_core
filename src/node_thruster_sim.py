@@ -44,9 +44,9 @@ class SimulatedThrusters(object):
         self.model_delay  = np.clip(self.model_delay, 0, tc.LPF_WINDOW-1)
 
         # subscribers
-        self.sub_cmd = rospy.Subscriber(topic_input, ThrusterCommand, self.handle_commands, tcp_nodelay=True, queue_size=3)
-        self.pub_feedback = rospy.Publisher(topic_feedback, ThrusterFeedback, tcp_nodelay=True, queue_size=3)
-        self.pub_forces = rospy.Publisher(topic_forces, Vector6Stamped, tcp_nodelay=True, queue_size=3)
+        self.sub_cmd = rospy.Subscriber(topic_input, ThrusterCommand, self.handle_commands, tcp_nodelay=True, queue_size=10)
+        self.pub_feedback = rospy.Publisher(topic_feedback, ThrusterFeedback, tcp_nodelay=True, queue_size=10)
+        self.pub_forces = rospy.Publisher(topic_forces, Vector6Stamped, tcp_nodelay=True, queue_size=10)
 
 
     def handle_commands(self, data):

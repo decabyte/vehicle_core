@@ -161,7 +161,7 @@ class VehiclePilot(object):
         self.sub_user = rospy.Subscriber(TOPIC_USER, Vector6Stamped, self.handle_user, tcp_nodelay=True, queue_size=1)
         self.pub_status = rospy.Publisher(TOPIC_STATUS, PilotStatus, tcp_nodelay=True, queue_size=1)
         self.pub_forces = rospy.Publisher(TOPIC_FORCES, Vector6Stamped, tcp_nodelay=True, queue_size=1)
-        self.pub_thr = rospy.Publisher(self.topic_output, ThrusterCommand, tcp_nodelay=True, queue_size=3)
+        self.pub_thr = rospy.Publisher(self.topic_output, ThrusterCommand, tcp_nodelay=True, queue_size=1)
 
         # pilot requests
         self.sub_pos_req = rospy.Subscriber(TOPIC_POS_REQ, PilotRequest, self.handle_pos_req, tcp_nodelay=True, queue_size=1)
