@@ -99,7 +99,6 @@ class CascadedController(VehicleController):
         self.feedforward_model = False
         self.linearized_model = False
 
-
         # intermediate requests
         self.req_vel = np.zeros(6)
         self.tau_ctrl = np.zeros(6)
@@ -134,7 +133,6 @@ class CascadedController(VehicleController):
         self.feedforward_model = bool(ctrl_config.get('feedforward_model', False))
         self.linearized_model = bool(ctrl_config.get('linearized_model', False))
 
-        #low-pass filter
         # depth pitch control
         #self.depth_pitch_control = bool(ctrl_config.get('depth_pitch_control', False))
 
@@ -280,19 +278,6 @@ class CascadedController(VehicleController):
         # second pid output
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
 
-        # linearized the plant is its model and the sensor measurements
-        #   enabled only if the feed-forward controller is not used!
-        if self.linearized_model and not self.feedforward_model:
-            # calculate the acceleration due to the dynamic coupling forces acting on the vehicle using the sensors'
-            # measurements without including the tau term (set to zero in this case)
-
-            # use the output of the pid as an acceleration
-            self.acc = self.tau_ctrl
-            print('acc: %s' % self.acc)
-
-            # rewrite the requested force using the dynamical model for linearizing the plant
-            self.tau_ctrl = self.model.update_tau(self.pos, self.vel, self.acc)
-
 
         # # velocity depth control based on pitch control
         # if self.depth_pitch_control:
@@ -304,9 +289,17 @@ class CascadedController(VehicleController):
         #     self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
 
 
-        # trimming forces: add offsets from config (if any)
-        self.tau_ctrl[2] += self.offset_z       # depth
-        self.tau_ctrl[4] += self.offset_m       # pitch
+        # linearized the plant is its model and the sensor measurements
+        #   enabled only if the feed-forward controller is not used!
+        if self.linearized_model and not self.feedforward_model:
+            # calculate the acceleration due to the dynamic coupling forces acting on the vehicle using the sensors'
+            # measurements without including the tau term (set to zero in this case)
+
+            # use the output of the pid as an acceleration
+            self.acc = self.tau_ctrl
+
+            # rewrite the requested force using the dynamical model for linearizing the plant
+            self.tau_ctrl = self.model.update_tau(self.pos, self.vel, self.acc)
 
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model and not self.linearized_model:
@@ -316,11 +309,17 @@ class CascadedController(VehicleController):
             # feed-forward controller
             self.tau_ctrl = self.tau_ctrl + self.tau_model
 
+
+        # pitch controller
+        #self.tau_ctrl[4] = self.tau_ctrl[4] + 0.105 * np.abs(self.vel[0])*self.vel[0] + 35.6*np.sin(self.pos[4])
+
         # hard limits on forces
         #   default: no roll allowed
         self.tau_ctrl[3] = 0.0
 
-        #self.tau_ctrl[4] = self.tau_ctrl[4] + 0.105 * np.abs(self.vel[0])*self.vel[0] + 35.6*np.sin(self.pos[4])
+        # trimming forces: add offsets from config (if any)
+        self.tau_ctrl[2] += self.offset_z       # depth
+        self.tau_ctrl[4] += self.offset_m       # pitch
 
         return self.tau_ctrl
 
@@ -462,6 +461,7 @@ class AutoTuningController(CascadedController):
         # apply user velocity limits (if any)
         self.req_vel = np.clip(self.req_vel, -self.lim_vel, self.lim_vel)
 
+
         # velocity errors
         self.err_vel = np.clip(self.vel - self.req_vel, -self.vel_input_lim, self.vel_input_lim)
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
@@ -477,7 +477,7 @@ class AutoTuningController(CascadedController):
         self.vel_Ki = np.clip(self.vel_Ki, -self.adapt_limit_vel[1], self.adapt_limit_vel[1])
         self.vel_Kd = np.clip(self.vel_Kd, -self.adapt_limit_vel[2], self.adapt_limit_vel[2])
 
-         # Velocity integral terms set to zero to avoid oscillations
+        # Velocity integral terms set to zero to avoid oscillations
         vel_changed = np.sign(self.err_vel) != np.sign(self.err_vel_prev)
         vel_changed[2] = False  # ignore the depth
         self.err_vel_int[vel_changed] = 0.0
@@ -493,6 +493,7 @@ class AutoTuningController(CascadedController):
             # feed-forward controller
             self.tau_ctrl = self.tau_ctrl + self.tau_model
 
+
         if self.linearized_model and not self.feedforward_model:
             # calculate the acceleration due to the dynamic coupling forces acting on the vehicle using the sensors'
             # measurements without including the tau term (set to zero in this case)
@@ -504,13 +505,14 @@ class AutoTuningController(CascadedController):
             self.tau_ctrl = self.model.update_tau(self.pos, self.vel, self.acc)
 
             #TODO: remove system oscillations and add pitch control for linearized version
+            # ...
 
+        # pitch controller
+        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0])*self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
 
         # hard limits on forces
         #   default: no roll allowed
-        self.tau_ctrl[3] = 0.
-
-        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0])*self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
+        self.tau_ctrl[3] = 0.0
 
         # trimming forces: add offsets from config (if any)
         self.tau_ctrl[2] += self.offset_z       # depth

@@ -156,5 +156,5 @@ LPF = sci.signal.butter(LPF_ORDER, LPF_CUTOFF / (LPF_FS / 2), 'low', analog=Fals
 
 # rate limiter
 THROTTLE_DELAY = 1              # (samples)
-THROTTLE_RISING_LIMIT = 5       # positive rate (throttle units)
-THROTTLE_FALLING_LIMIT = 3      # negative rate (throttle units)
+THROTTLE_RISING_LIMIT = 5.5     # positive rate (throttle units) was 5.0
+THROTTLE_FALLING_LIMIT = 5.5    # negative rate (throttle units) was 3.0
