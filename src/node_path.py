@@ -41,12 +41,12 @@ from vehicle_interface.srv import PathService, PathServiceResponse, BooleanServi
 TOPIC_NAV = 'nav/nav_sts'
 TOPIC_POS_REQ = 'pilot/position_req'
 TOPIC_PILOT = 'pilot/status'
+
 SRV_CONTROLLER = 'pilot/switch'
+SRV_PATH_CONTROL = 'path/control'
 
 TOPIC_STATUS = 'path/status'
 TOPIC_VIS = 'path/markers'
-
-SRV_PATH_CONTROL = 'path/control'
 
 
 # node states
