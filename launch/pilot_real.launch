@@ -1,5 +1,8 @@
 <launch>
 
+    <!-- default args -->
+    <arg name="verbose" default="" />
+
     <!-- load the pilot config -->
     <rosparam command="load" file="$(find vehicle_core)/conf/pid_real.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/vehicle_model.yaml"/>
@@ -11,7 +14,7 @@
 
 
     <!-- start the vehicle controller -->
-    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="-v" output="screen">
+    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="$(arg verbose)" output="screen">
         <!-- redirect output -->
         <param name="topic_output" value="thrusters/commands"/>
     </node>

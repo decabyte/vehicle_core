@@ -6,7 +6,7 @@ Panels:
       Expanded:
         - /Odometry1
       Splitter Ratio: 0.5
-    Tree Height: 357
+    Tree Height: 449
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -104,6 +104,42 @@ Visualization Manager:
         {}
       Queue Size: 100
       Value: true
+    - Alpha: 1
+      Class: rviz/RobotModel
+      Collision Enabled: false
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        circular_sonar_frame:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        p_and_tilt_body:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        sonar_body:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
   Enabled: true
   Global Options:
     Background Color: 57; 57; 57
@@ -128,7 +164,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 7.08336
+      Distance: 11.4428
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
         Stereo Focal Distance: 1
@@ -140,10 +176,10 @@ Visualization Manager:
         Z: 0
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 0.0652058
+      Pitch: 0.335206
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 4.03852
+      Yaw: 4.01852
     Saved: ~
 Window Geometry:
   Displays:
@@ -161,5 +197,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1279
-  X: 1940
-  Y: 465
+  X: 1930
+  Y: 455

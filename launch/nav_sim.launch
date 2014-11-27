@@ -1,5 +1,8 @@
 <launch>
 
+    <!-- default args -->
+    <arg name="verbose" default="" />
+
     <!-- use Nessie AUV throttle limit -->
     <param name="thrusters/throttle_limit" value="85"/>
 
@@ -17,7 +20,7 @@
     </node>
 
     <!-- start the navigation simulator -->
-    <node name="nav_sim" pkg="vehicle_core" type="node_nav_sim.py" args="-v" output="screen">
+    <node name="nav_sim" pkg="vehicle_core" type="node_nav_sim.py" args="$(arg verbose)" output="screen">
         <!-- sim_rate: publish rate of nav messages (default: 20 Hz) -->
         <param name="sim_rate" value="20"/>
         <param name="pub_rate" value="10"/>
