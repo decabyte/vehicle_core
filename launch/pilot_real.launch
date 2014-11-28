@@ -1,7 +1,7 @@
 <launch>
 
     <!-- default args -->
-    <arg name="verbose" default="" />
+    <arg name="verbose" default="-v" />
 
     <!-- load the pilot config -->
     <rosparam command="load" file="$(find vehicle_core)/conf/pid_real.yaml"/>
