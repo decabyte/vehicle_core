@@ -22,7 +22,7 @@ Requirements
     $ sudo apt-get install ros-hydro-joystick-drivers
   ```
 
-Run
+Run Simulator
 ---
 1) Run nav simulator
   ```
@@ -48,6 +48,40 @@ Extra: For trajectory tracking, enable the path
     roslaunch vehicle_core path_controller.launch
     vehicle_core/scripts/pp_start.sh
     vehicle_core/scripts/pp_lines_path.sh
+  ```
+  
+Run Real Operation
+---
+1) Start Nessie A (use SSH on Nessie5A):
+  ```
+    $ roslaunch nessie_bringup nessie_A_basic.launch
+  ```
+  
+2) Start Nessie B (use SSH on Nessie5B):
+  ```
+    $ roslaunch nessie_bringup nessie_B_basic.launch
+  ```
+  
+3) On Nessie A:
+  ```
+    $ roslaunch thrusters_controller driver.launch
+    $ roslaunch vehicle_core pilot_real.launch
+  ```
+  
+4) On Trieste or any external laptop:
+  ```
+    $ roslaunch vehicle_core joystick_js0.launch
+  ```
+  
+5) On Nessie A (after getting a correct initial position):
+  ```
+    $ rosrun auv_nav auv_nav
+  ```
+
+6) Optional visualization (on Trieste or external laptop run):
+  ```
+    $ roscd vehicle_core/conf
+    $ rosrun rviz rviz -d nessie_wavetank.rviz
   ```
 
 Credits
