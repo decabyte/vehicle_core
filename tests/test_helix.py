@@ -15,11 +15,13 @@ from vehicle_core.util import trajectory_tools as tt
 def main():
     # parameters
     centre = np.array([1.0, -1.0, 1.0, 0.0, 0.0, 0.0])
-    radius = 0.6
+    radius = 1.0
+    loops = 3.0
+    spacing = 0.5
 
     # logic
     #points = tt.interpolate_circle(centre, radius, spacing=0.75, facing_centre=False)
-    points = tt.interpolate_helix(centre, radius, loops=3, spacing=0.25, facing_centre=False)
+    points = tt.interpolate_helix(centre, radius, loops=loops, spacing=spacing, facing_centre=False)
 
     # output
     import yaml
