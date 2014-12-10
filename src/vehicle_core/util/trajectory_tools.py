@@ -472,10 +472,12 @@ def interpolate_circle(centre, radius=5.0, spacing=1.0, facing_centre=True, **kw
     """Generate a circular trajectory give its central point, its radius and an optionally angle which defines the
     coverage of the circle (defaults to a full circular trajectory).
 
-    :param centre:
-    :param radius:
-    :param spacing:
-    :param facing_centre:
+    The standard behaviour is to start from the southern point and complete a full circle around the central point.
+
+    :param centre: central waypoint, numpy array of shape (6)
+    :param radius: radius of the circular shape (m)
+    :param spacing: distance between consecutive waypoints (m)
+    :param facing_centre: boolean flag, if enabled (default) the yaw is set to face the centre of the circular trajectory
     :param kwargs:
     :return: (n, 6) numpy array with trajectory points
     """
@@ -502,11 +504,14 @@ def interpolate_circle(centre, radius=5.0, spacing=1.0, facing_centre=True, **kw
 def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, facing_centre=True, **kwargs):
     """Generate a helix trajectory give its central point, its radius, its length, and an optionally the number of loops.
 
-    :param centre:
-    :param radius:
-    :param height:
-    :param loops:
-    :param spacing:
+    The standard behaviour is to start from the centre's depth and dive for the height provided by the user.
+
+    :param centre: central waypoint, numpy array of shape (6)
+    :param radius: radius of the helix shape (m)
+    :param height: height of the helix shape (m), as default it increases the depth starting from the centre's depth
+    :param loops: number of complete loops around the centre (number)
+    :param spacing: distance between consecutive waypoints (m)
+    :param facing_centre: boolean flag, if enabled (default) the yaw is set to face the centre of the helix trajectory
     :param kwargs:
     :return:(n, 6) numpy array with trajectory points
     """
