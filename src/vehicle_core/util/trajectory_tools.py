@@ -98,7 +98,12 @@ def calculate_orientation(position, goal):
     :param goal: numpy array of shape (2+)
     :return: an angle in radians
     """
-    return np.arctan2((goal[1] - position[1]), (goal[0] - position[0]))
+
+    if position.ndim > 1:
+        return np.arctan2((goal[1] - position[:, 1]), (goal[0] - position[:, 0]))
+    else:
+        return np.arctan2((goal[1] - position[1]), (goal[0] - position[0]))
+
 
 # def calculate_delta(A, B):
 #     """calculate distance and delta vector in body frame coordinates at point A"""
@@ -154,7 +159,7 @@ def leg_distances(points, spacing_dim=2):
     return np.sqrt( np.sum(squared_delta, axis=1) )
 
 
-def cumulative_distance(points, spacing_dim=2, add_zero_row=False):
+def cumulative_distance(points, spacing_dim=2, add_zero_row=False, **kwargs):
     """Produces an array of length n=len(points) with nth entry showing the distance travelled from the start
     to nth point on the list.
 
@@ -290,43 +295,7 @@ def interpolate_trajectory(points, spacing=10, spacing_dim=2, face_goal=False, *
     return trajectory
 
 
-# def interpolate_leg(A, B, spacing, dimensions=2):
-#     """Generates an array of points equispaced along a line between points A and B.
-#
-#     The array includes points A and B.
-#
-#     :param A: start point numpy array shape (6)
-#     :param B: end point numpy array shape (6)
-#     :param spacing: distance between waypoints
-#     :param dimensions: how many dimensions should be considered when calculating spacing
-#     :param spacing: set the orientation to facing the end point before moving towards it
-#     :return: (n, 6) numpy array with interpolated points
-#     """
-#     # roll and pitch to zero
-#     A[3:5] = 0
-#     B[3:5] = 0
-#
-#     # necessary orientation for facing the end point
-#     distance = distance_between(A, B, dimensions)
-#
-#     steps = np.floor(distance / spacing) + 2
-#     leg = np.zeros((steps, 6))
-#
-#     # if steps_advance is 0 this doesnt generate anything
-#     leg[:, 0] = np.linspace(A[0], B[0], steps)
-#     leg[:, 1] = np.linspace(A[1], B[1], steps)
-#     leg[:, 2] = np.linspace(A[2], B[2], steps)
-#     angle_diff = wrap_angle(B[5] - A[5])
-#     leg[:, 5] = wrap_angle(np.linspace(0, angle_diff, steps) + A[5])
-#
-#     # reach the end point
-#     if not np.allclose(leg[-1], B):
-#         print leg[-1], B
-#
-#     return leg
-
-
-def interpolate_leg(A, B, spacing, dimensions=2, face_goal=False, min_distance=1):
+def interpolate_leg(A, B, spacing, dimensions=2, face_goal=False, min_distance=1, **kwargs):
     """Generates an array of points equispaced along a line between points A and B with the rotation facing point B.
 
     The array includes points A and B.
@@ -374,7 +343,7 @@ def interpolate_leg(A, B, spacing, dimensions=2, face_goal=False, min_distance=1
     return leg
 
 
-def interpolate_arc(A, B, radius, spacing, right=True):
+def interpolate_arc(A, B, radius, spacing, right=True, **kwargs):
     """Produces an array of points that lie on an arc between points A and B. If the radius asked is too small to
     generate a trajectory the function will return False, None.
 
@@ -392,7 +361,7 @@ def interpolate_arc(A, B, radius, spacing, right=True):
     :param radius: radius of the arc
     :param spacing: maximum distance between the points
     :param right: select which path should be generated
-    :return: boolean describing whether generation failed or succeeded, (n, 6) numpy array with points
+    :return: (n, 6) numpy array with trajectory points
     """
     if right is True:
         sign = 1
@@ -466,7 +435,16 @@ def interpolate_arc(A, B, radius, spacing, right=True):
     return trajectory
 
 
-def interpolate_sector(position, radius=5, sector=90, spacing=1):
+def interpolate_sector(position, radius=5, sector=90, spacing=1, **kwargs):
+    """Generate a trajectory over a circular sector, defined by the starting position of the vehicle, the radius and an
+    angle which defines the length of the sector.
+
+    :param position:
+    :param radius:
+    :param sector:
+    :param spacing:
+    :return: (n, 6) numpy array with trajectory points
+    """
     # find center or the arc
     center = np.zeros(6)
     center[0] = position[0] + radius * np.sin(-position[5] + np.pi/2)
@@ -490,8 +468,69 @@ def interpolate_sector(position, radius=5, sector=90, spacing=1):
     return points
 
 
+def interpolate_circle(centre, radius=5.0, spacing=1.0, facing_centre=True, **kwargs):
+    """Generate a circular trajectory give its central point, its radius and an optionally angle which defines the
+    coverage of the circle (defaults to a full circular trajectory).
 
-def format_bezier_input(start, p1, p2, end, degrees=False):
+    :param centre:
+    :param radius:
+    :param spacing:
+    :param facing_centre:
+    :param kwargs:
+    :return: (n, 6) numpy array with trajectory points
+    """
+    angle = 2 * np.pi
+    total_length = angle * radius
+
+    steps = np.floor(total_length / spacing)
+    theta = np.linspace(0.0, angle, num=steps) - (np.pi / 2)
+
+    x, y = pol2cart(radius, theta)
+
+    points = np.zeros((steps, 6))
+    points[:, 0] = centre[0] + y
+    points[:, 1] = centre[1] + x
+    points[:, 2] = centre[2]
+    points[:, 5] = wrap_angle( calculate_orientation(points, centre) )
+
+    if not facing_centre:
+        points[:, 5] += (np.pi / 2)
+
+    return points
+
+
+def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, facing_centre=True, **kwargs):
+    """Generate a helix trajectory give its central point, its radius, its length, and an optionally the number of loops.
+
+    :param centre:
+    :param radius:
+    :param height:
+    :param loops:
+    :param spacing:
+    :param kwargs:
+    :return:(n, 6) numpy array with trajectory points
+    """
+    angle = (2 * np.pi) * loops
+    total_length = angle * radius
+
+    steps = np.floor(total_length / spacing)
+    theta = np.linspace(0.0, angle, num=steps) - (np.pi / 2)
+
+    x, y = pol2cart(radius, theta)
+
+    points = np.zeros((steps, 6))
+    points[:, 0] = centre[0] + y
+    points[:, 1] = centre[1] + x
+    points[:, 2] = np.linspace(centre[2], centre[2] + height, num=steps)
+    points[:, 5] = wrap_angle( calculate_orientation(points, centre) )
+
+    if not facing_centre:
+        points[:, 5] += (np.pi / 2)
+
+    return points
+
+
+def format_bezier_input(start, p1, p2, end, degrees=False, **kwargs):
     """Generates input points for interpolate_bezier functions out of user-friendly description of the points.
 
     :param start: standard waypoint, numpy array of shape (6)
@@ -515,7 +554,7 @@ def format_bezier_input(start, p1, p2, end, degrees=False):
     return P
 
 
-def interpolate_bezier(points, steps=100):
+def interpolate_bezier(points, steps=100, **kwargs):
     """Generates an array of waypoints which lie on a 2D Bezier curve described by n (x, y) points. The trajectory is
     guaranteed to include the start and end points though only on (x, y, z) axes.
 
@@ -556,7 +595,7 @@ def interpolate_bezier(points, steps=100):
     return B
 
 
-def interpolate_bezier_cubic(points, steps=100):
+def interpolate_bezier_cubic(points, steps=100, **kwargs):
     """Equivalent to interpolate_bezier with 4 input points (degree 3)
 
     :param points: (n, 2+) array of waypoints
