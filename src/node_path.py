@@ -358,6 +358,7 @@ class PathController(object):
             self.path_time_start = rospy.Time().now().to_sec()
 
             rospy.loginfo('%s new path accepted: %d', self.name, self.path_id)
+            rospy.loginfo('%s path to follow:\n%s', self.name, self.path_obj.points)
         except KeyValue:
             rospy.logerr('%s unknown path mode: %s', self.name, self.path_mode)
             return {'error': 'unknown path mode'}
