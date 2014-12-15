@@ -109,21 +109,21 @@ def saturation_allocation(tau_request, inv_TAM):
     return forces
 
 
-# TODO: make the list of priorities a function argument and improve comments
-def priority_allocation(tau_request, inv_TAM):
+def priority_allocation(tau_request, inv_TAM, priorities=(2, 5, 1, 0, 4, 3)):
     """This functions assures that priority among degrees of freedom is respected.
 
-        Priority list:
-            HEAVE > YAW > SWAY > SURGE > PITCH > ROLL
+    Default priorities:
+        heave > yaw > sway > surge > pitch > roll
 
-    :param tau_request:
-    :param inv_TAM:
-    :return: tau_assigned
+    :param tau_request: the body-frame forces to allocate using the current configuration
+    :param inv_TAM: the inverse of the thruster allocation matrix, used for allocating the forces
+    :param priorities: a python iterable of dof indexes representing the allocation priorities
+    :return: forces_assigned: ndarray of (N,) forces where N is the number of thrusters
     """
     thrust_available = np.ones(inv_TAM.shape[0]) * tc.MAX_FORCE
     forces_assigned = np.zeros_like(tau_request)
 
-    for dof in (2, 5, 1, 0, 4, 3):
+    for dof in priorities:
         local_tau = np.zeros_like(tau_request)
         local_tau[dof] = tau_request[dof]
 
@@ -170,4 +170,3 @@ def evaluate_max_force(inv_TAM):
     max_u[np.where(np.isnan(max_u))] = 0
 
     return max_u
-
