@@ -31,65 +31,78 @@ Requirements
 
 Run Simulator
 ---
+
 1) Run nav simulator
   ```
-    $ roslaunch vehicle_core nav_sim.launch
+  roslaunch vehicle_core nav_sim.launch
   ```
 
 2) Run vehicle controller
   ```
-    $ roslaunch vehicle_core pilot_sim.launch
-  ```
-   or
-  ```
-    $ roslaunch vehicle_core auto_sim.launch
+  roslaunch vehicle_core pilot_sim.launch
   ```
 
 3) Run visualization
   ```
-    $ roslaunch vehicle_core nav_visual.launch
+  roslaunch vehicle_core nav_visual.launch
+  ```
+  
+4) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
+  ```
+  rosservice call /pilot/switch "request: true"
   ```
 
 Extra: For trajectory tracking, enable the path
   ```
-    roslaunch vehicle_core path_controller.launch
-    vehicle_core/scripts/pp_start.sh
-    vehicle_core/scripts/pp_lines_path.sh
+  roslaunch vehicle_core path_controller.launch
+  vehicle_core/scripts/pp_start.sh
+  vehicle_core/scripts/pp_lines_path.sh
+  ```
+  
+Extra: Use a different control law, run this instead of `pilot_sim.launch`:
+  ```
+  roslaunch vehicle_core auto_sim.launch
   ```
   
 Run Real Operation
 ---
 1) Start Nessie A (use SSH on Nessie5A):
   ```
-    $ roslaunch nessie_bringup nessie_A_basic.launch
+  roslaunch nessie_bringup nessie_A_basic.launch
   ```
   
 2) Start Nessie B (use SSH on Nessie5B):
   ```
-    $ roslaunch nessie_bringup nessie_B_basic.launch
+  roslaunch nessie_bringup nessie_B_basic.launch
   ```
   
 3) On Nessie A:
   ```
-    $ roslaunch thrusters_controller driver.launch
-    $ roslaunch vehicle_core pilot_real.launch
+  roslaunch thrusters_controller driver.launch
+  roslaunch vehicle_core pilot_real.launch
   ```
   
 4) On Trieste or any external laptop:
   ```
-    $ roslaunch vehicle_core joystick_js0.launch
+  roslaunch vehicle_core joystick_js0.launch
   ```
   
 5) On Nessie A (after getting a correct initial position):
   ```
-    $ rosrun auv_nav auv_nav
+  rosrun auv_nav auv_nav
   ```
 
 6) Optional visualization (on Trieste or external laptop run):
   ```
-    $ roscd vehicle_core/conf
-    $ rosrun rviz rviz -d nessie_wavetank.rviz
+  roscd vehicle_core/conf
+  rosrun rviz rviz -d nessie_wavetank.rviz
   ```
+  
+7) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
+  ```
+  rosservice call /pilot/switch "request: true"
+  ```
+
 
 Credits
 -------
