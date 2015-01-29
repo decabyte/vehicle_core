@@ -63,12 +63,12 @@ class SimulatedThrusters(object):
         self.name = name
 
         # data arrays
-        self.v_requested = np.zeros((6, tc.LPF_WINDOW))
-        self.v_predicted = np.zeros(6)
-        self.v_last = np.zeros(6)
-        self.i_predicted = np.zeros(6)
+        self.throttle_request = np.zeros((6, tc.LPF_WINDOW))
+        self.throttle_predicted = np.zeros(6)
+        self.throttle_last = np.zeros(6)
+        self.current_predicted = np.zeros(6)
         self.forces_predicted = np.zeros(6)
-        self.forces = np.zeros(6)
+        self.body_forces = np.zeros(6)
         self.throttle_limit = thruster_limit
 
         self.limit_rate = bool(kwargs.get('limit_rate', False))
@@ -87,38 +87,38 @@ class SimulatedThrusters(object):
 
 
     def handle_commands(self, data):
-        self.v_requested[:, -1] = np.array(data.throttle[0:6])
+        self.throttle_request[:, -1] = np.array(data.throttle[0:6])
 
         # apply thruster model (current estimation)
-        self.v_last = np.copy(self.v_predicted)
-        self.v_predicted = th.predict_throttle(
-            self.v_requested, b=tc.LPF[0], a=tc.LPF[1], offset=self.model_delay, limit=self.throttle_limit
+        self.throttle_last = np.copy(self.throttle_predicted)
+        self.throttle_predicted = th.predict_throttle(
+            self.throttle_request, b=tc.LPF[0], a=tc.LPF[1], offset=self.model_delay, limit=self.throttle_limit
         )
 
         if self.limit_rate is True:
             # new thrusters filter
-            self.v_predicted = th.rate_limiter(
-                self.v_predicted, self.v_last, rising_limit=self.rising_limit, falling_limit=self.falling_limit
+            self.throttle_predicted = th.rate_limiter(
+                self.throttle_predicted, self.throttle_last, rising_limit=self.rising_limit, falling_limit=self.falling_limit
             )
 
-        self.i_predicted = tm.estimate_current(self.v_predicted, tc.THROTTLE_TO_CURRENT)
+        self.current_predicted = tm.estimate_current(self.throttle_predicted, tc.THROTTLE_TO_CURRENT)
 
         # apply thruster model (thrust estimation)
-        self.forces_predicted = tm.estimate_forces( self.v_predicted, self.i_predicted, tc.CURRENT_TO_THRUST )
+        self.forces_predicted = tm.estimate_forces( self.throttle_predicted, self.current_predicted, tc.CURRENT_TO_THRUST )
 
         # converting from thruster domain to body forces using the thruster allocation matrix
         self.forces_predicted = self.forces_predicted.reshape(6, 1)
-        self.forces = np.dot(tc.TAM, self.forces_predicted)
+        self.body_forces = np.dot(tc.TAM, self.forces_predicted)
 
         # zero the array in case the messages are not received
-        self.v_requested = np.roll(self.v_requested, -1, axis=1)
-        self.v_requested[:, -1] = np.zeros(6)
+        self.throttle_request = np.roll(self.throttle_request, -1, axis=1)
+        self.throttle_request[:, -1] = np.zeros(6)
 
         # send thruster feedback
         msg = ThrusterFeedback()
         msg.header.stamp = rospy.Time.now()
-        msg.throttle = self.v_predicted
-        msg.current = self.i_predicted
+        msg.throttle = self.throttle_predicted
+        msg.current = self.current_predicted
         msg.temp = np.zeros(6)
         msg.status = np.zeros(6)
         msg.errors = np.zeros(6)
@@ -127,9 +127,8 @@ class SimulatedThrusters(object):
         # send body forces
         msg = Vector6Stamped()
         msg.header.stamp = rospy.Time.now()
-        msg.values = self.forces
+        msg.values = self.body_forces
         self.pub_forces.publish(msg)
-
 
 
 if __name__ == '__main__':

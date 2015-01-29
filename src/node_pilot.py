@@ -110,10 +110,10 @@ SRV_FAULT_SPEEDS = 'pilot/fault_speeds'     # enable/disable the adaptive fault 
 # autotuning
 TOPIC_GAINS = 'controller/gains'
 
-
-THRESH_METRIC = np.array([20.0, 20.0, 20.0, 20.0, 20.0, 20.0])      # threshold for thrusters diagnostic metric
-W_ADPT_RATE = 0.01                                                  # thruster weight adaptation rate
-W_THRS = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])                   # thruster exclusion threshold (% of reference)
+# diagnostic parameters
+THRESH_METRIC = np.array([20.0, 20.0, 20.0, 20.0, 20.0, 20.0])     # threshold for thrusters diagnostic metric
+W_ADJ_COEF = 0.01                                                  # thruster weight adaptation rate
+W_THRESH = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])                # thruster exclusion threshold (% of reference)
 
 
 # utils
@@ -250,11 +250,9 @@ class VehiclePilot(object):
         self.fault_control = bool(pilot_config.get('fault_control', False))
         self.fault_speeds = bool(pilot_config.get('fault_speeds', False))
 
-        self.thres_fast_speed = float(pilot_config.get('threshold_fast', 1.0))      # high speed manoeuvring above this fwd speed
-        self.thres_slow_speed = float(pilot_config.get('threshold_slow', 0.25))     # low speed manoeuvring below this fwd speed
-
-        self.thres_fast_speed = np.clip(self.thres_fast_speed, 0, MAX_SPEED[0])
-        self.thres_slow_speed = np.clip(self.thres_slow_speed, 0, MAX_SPEED[0])
+        # high speed and low speed manoeuvring range
+        self.thres_fast_speed = np.clip( float(pilot_config.get('threshold_fast', 1.0)) )
+        self.thres_slow_speed = np.clip( float(pilot_config.get('threshold_slow', 0.25)) )
 
         # alpha mapping for mixing thruster allocation matrices
         self.speed_m = 1.0 / np.abs(self.thres_fast_speed - self.thres_slow_speed)
@@ -368,12 +366,12 @@ class VehiclePilot(object):
             indexes = np.where(self.diagnostic_metric > THRESH_METRIC)[0]
 
             # update the efficiency and costs
-            self.thruster_efficiency[indexes] -= W_ADPT_RATE                        # reduce thruster efficiency
+            self.thruster_efficiency[indexes] -= W_ADJ_COEF                        # reduce thruster efficiency
             self.thruster_efficiency = np.maximum(self.thruster_efficiency, 0)      # prevent negative values
 
             # check if is better to exclude inefficient thrusters
-            if np.any(self.thruster_efficiency <= W_THRS):
-                idx_disable = np.where(self.thruster_efficiency <= W_THRS)[0]
+            if np.any(self.thruster_efficiency <= W_THRESH):
+                idx_disable = np.where(self.thruster_efficiency <= W_THRESH)[0]
                 self.thruster_efficiency[idx_disable] = 0
 
 
@@ -615,7 +613,7 @@ class VehiclePilot(object):
             # avoid divisions by zero
             for dof in np.argwhere(tc.MAX_U != 0):
                 ratio = self.available_forces[dof] / tc.MAX_U[dof]
-                self.lim_vel_ctrl[dof] = MAX_SPEED * np.power(ratio, 3.0 / 2.0)
+                self.lim_vel_ctrl[dof] = MAX_SPEED * np.power(ratio, 1.0 / 2.0)
 
             self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, 0, MAX_SPEED)
 

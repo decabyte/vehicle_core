@@ -3,33 +3,33 @@
 
 # Software License Agreement (BSD License)
 #
-#  Copyright (c) 2014, Ocean Systems Laboratory, Heriot-Watt University, UK.
-#  All rights reserved.
+# Copyright (c) 2014, Ocean Systems Laboratory, Heriot-Watt University, UK.
+# All rights reserved.
 #
-#  Redistribution and use in source and binary forms, with or without
-#  modification, are permitted provided that the following conditions
-#  are met:
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
 #
-#   * Redistributions of source code must retain the above copyright
-#     notice, this list of conditions and the following disclaimer.
-#   * Redistributions in binary form must reproduce the above
-#     copyright notice, this list of conditions and the following
-#     disclaimer in the documentation and/or other materials provided
-#     with the distribution.
-#   * Neither the name of the Heriot-Watt University nor the names of
-#     its contributors may be used to endorse or promote products
-#     derived from this software without specific prior written
-#     permission.
+# * Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+# * Redistributions in binary form must reproduce the above
+# copyright notice, this list of conditions and the following
+# disclaimer in the documentation and/or other materials provided
+# with the distribution.
+# * Neither the name of the Heriot-Watt University nor the names of
+# its contributors may be used to endorse or promote products
+# derived from this software without specific prior written
+# permission.
 #
-#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-#  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-#  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-#  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-#  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-#  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-#  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-#  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-#  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+# COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
 #  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
 #  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 #  POSSIBILITY OF SUCH DAMAGE.
@@ -50,12 +50,12 @@ MODE_POSITION = 0
 MODE_VELOCITY = 1
 MODE_STATION = 2
 
-MAX_PITCH = np.deg2rad(60)                      # max pitch (rad)
+MAX_PITCH = np.deg2rad(60)  # max pitch (rad)
 
 
 # utils
 def wrap_pi(angle):
-    return ((angle + np.pi) % (2*np.pi)) - np.pi
+    return ((angle + np.pi) % (2 * np.pi)) - np.pi
 
 #def wrap_2pi(angle):
 #    return ((angle + np.pi) % (2*np.pi))
@@ -107,7 +107,6 @@ class VehicleController(object):
         )
 
 
-
 class CascadedController(VehicleController):
     """CascadedController implements a controller strategy based on the use of cascaded PID controllers.
 
@@ -155,8 +154,8 @@ class CascadedController(VehicleController):
         self.err_intermediate_int = 0.0
 
         # init jacobians matrices
-        self.J = np.zeros((6,6))     # jacobian matrix (translate velocity from body referenced to Earth referenced)
-        self.J_inv = np.zeros((6,6)) # inverse jacobian matrix
+        self.J = np.zeros((6, 6))  # jacobian matrix (translate velocity from body referenced to Earth referenced)
+        self.J_inv = np.zeros((6, 6))  # inverse jacobian matrix
 
 
     def update_config(self, ctrl_config, model_config):
@@ -270,7 +269,7 @@ class CascadedController(VehicleController):
         # model-free pid cascaded controller
         #   first pid (outer loop on position)
         self.err_pos = self.pos - self.des_pos
-        self.err_pos = np.dot( self.J_inv, self.err_pos.reshape((6,1)) ).flatten()
+        self.err_pos = np.dot(self.J_inv, self.err_pos.reshape((6, 1))).flatten()
 
         # wrap angles and limit pitch
         self.err_pos[3:6] = wrap_pi(self.err_pos[3:6])
@@ -287,7 +286,8 @@ class CascadedController(VehicleController):
         self.err_pos_int[pos_changed] = 0.0
 
         # first pid output (plus speed limits if requested by the user)
-        self.req_vel = (-self.pos_Kp * self.err_pos) + (-self.pos_Kd * self.err_pos_der) + (-self.pos_Ki * self.err_pos_int)
+        self.req_vel = (-self.pos_Kp * self.err_pos) + (-self.pos_Kd * self.err_pos_der) + (
+            -self.pos_Ki * self.err_pos_int)
 
 
         # if running in velocity mode ignore the first pid
@@ -339,22 +339,22 @@ class CascadedController(VehicleController):
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model and not self.linearized_model:
             self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
-            self.tau_model[3] = 0   # ignore roll
+            self.tau_model[3] = 0  # ignore roll
 
             # feed-forward controller
             self.tau_ctrl = self.tau_ctrl + self.tau_model
 
 
-        # pitch controller
-        #self.tau_ctrl[4] = self.tau_ctrl[4] + 0.105 * np.abs(self.vel[0])*self.vel[0] + 35.6*np.sin(self.pos[4])
+        # pitch controller (TODO: add the pitch controller from the autotuning version)
+        # self.tau_ctrl[4] = self.tau_ctrl[4] + 0.105 * np.abs(self.vel[0])*self.vel[0] + 35.6*np.sin(self.pos[4])
 
         # hard limits on forces
         #   default: no roll allowed
         self.tau_ctrl[3] = 0.0
 
         # trimming forces: add offsets from config (if any)
-        self.tau_ctrl[2] += self.offset_z       # depth
-        self.tau_ctrl[4] += self.offset_m       # pitch
+        self.tau_ctrl[2] += self.offset_z  # depth
+        self.tau_ctrl[4] += self.offset_m  # pitch
 
         return self.tau_ctrl
 
@@ -405,7 +405,6 @@ class AutoTuningController(CascadedController):
         self.pitch_surge_coeff = 0.0
         self.pitch_rest_coeff = 0.0
         self.tau_ctrl_prev = np.zeros(6)
-
 
 
     def update_config(self, ctrl_config, model_config):
@@ -459,7 +458,7 @@ class AutoTuningController(CascadedController):
 
         # PI position controller
         self.err_pos = self.pos - self.des_pos
-        self.err_pos = np.dot(self.J_inv, self.err_pos.reshape(-1,1)).flatten()
+        self.err_pos = np.dot(self.J_inv, self.err_pos.reshape(-1, 1)).flatten()
 
         # wrap angles and limit pitch
         self.err_pos[3:6] = wrap_pi(self.err_pos[3:6])
@@ -486,7 +485,8 @@ class AutoTuningController(CascadedController):
         self.err_pos_int[pos_changed] = 0.0
 
         # PI controller limited (outer loop on position) - velocity
-        self.req_vel = (-np.abs(self.pos_Kp) * self.err_pos) + (-np.abs(self.pos_Ki) * self.err_pos_int) + (-np.abs(self.pos_Kd) * self.err_pos_der)
+        self.req_vel = (-np.abs(self.pos_Kp) * self.err_pos) + (-np.abs(self.pos_Ki) * self.err_pos_int) + (
+            -np.abs(self.pos_Kd) * self.err_pos_der)
 
 
         # if running in velocity mode ignore the first pid
@@ -518,16 +518,16 @@ class AutoTuningController(CascadedController):
         self.err_vel_int[vel_changed] = 0.0
 
         # PI controller velocity
-        self.tau_ctrl = (-np.abs(self.vel_Kp) * self.err_vel) + (-np.abs(self.vel_Ki) * self.err_vel_int) + (-np.abs(self.vel_Kd) * self.err_vel_der)
+        self.tau_ctrl = (-np.abs(self.vel_Kp) * self.err_vel) + (-np.abs(self.vel_Ki) * self.err_vel_int) + (
+            -np.abs(self.vel_Kd) * self.err_vel_der)
 
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model and not self.linearized_model:
             self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
-            self.tau_model[3] = 0   # ignore roll
+            self.tau_model[3] = 0  # ignore roll
 
             # feed-forward controller
             self.tau_ctrl = self.tau_ctrl + self.tau_model
-
 
         if self.linearized_model and not self.feedforward_model:
             # calculate the acceleration due to the dynamic coupling forces acting on the vehicle using the sensors'
@@ -539,19 +539,20 @@ class AutoTuningController(CascadedController):
             # rewrite the requested force using the dynamical model for linearizing the plant
             self.tau_ctrl = self.model.update_tau(self.pos, self.vel, self.acc)
 
-            #TODO: remove system oscillations and add pitch control for linearized version
+            # TODO: remove system oscillations and add pitch control for linearized version
             # ...
 
         # pitch controller
-        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0])*self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
+        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0]) * self.vel[
+            0] + self.pitch_rest_coeff * np.sin(self.pos[4])
 
         # hard limits on forces
         #   default: no roll allowed
         self.tau_ctrl[3] = 0.0
 
         # trimming forces: add offsets from config (if any)
-        self.tau_ctrl[2] += self.offset_z       # depth
-        self.tau_ctrl[4] += self.offset_m       # pitch
+        self.tau_ctrl[2] += self.offset_z  # depth
+        self.tau_ctrl[4] += self.offset_m  # pitch
 
         return self.tau_ctrl
 
