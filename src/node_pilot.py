@@ -65,10 +65,6 @@ from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatS
 DEFAULT_RATE = 10                           # Hz
 STATUS_RATE = 2                             # Hz
 
-MAX_PITCH = np.deg2rad(60.0)                            # max pitch (rad)
-MAX_SPEED = np.array([1.0, 0.6, 0.6, 0.0, 2.0, 2.0])    # max speed (m/s and rad/s)
-
-
 # controller status
 CTRL_DISABLED = 0
 CTRL_ENABLED = 1
@@ -114,6 +110,10 @@ TOPIC_GAINS = 'controller/gains'
 THRESH_METRIC = np.array([20.0, 20.0, 20.0, 20.0, 20.0, 20.0])     # threshold for thrusters diagnostic metric
 W_ADJ_COEF = 0.01                                                  # thruster weight adaptation rate
 W_THRESH = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])                # thruster exclusion threshold (% of reference)
+
+# TODO: use configuration file for loading these parameters
+MAX_PITCH = np.deg2rad(60.0)                            # max pitch (rad)
+MAX_SPEED = np.array([1.0, 0.6, 0.6, 0.0, 2.0, 2.0])    # max speed (m/s and rad/s)
 
 
 # utils
@@ -251,8 +251,8 @@ class VehiclePilot(object):
         self.fault_speeds = bool(pilot_config.get('fault_speeds', False))
 
         # high speed and low speed manoeuvring range
-        self.thres_fast_speed = np.clip( float(pilot_config.get('threshold_fast', 1.0)) )
-        self.thres_slow_speed = np.clip( float(pilot_config.get('threshold_slow', 0.25)) )
+        self.thres_fast_speed = np.clip( float(pilot_config.get('threshold_fast', 1.0)), 0.50, 2.00 )
+        self.thres_slow_speed = np.clip( float(pilot_config.get('threshold_slow', 0.25)), 0.01, 1.00 )
 
         # alpha mapping for mixing thruster allocation matrices
         self.speed_m = 1.0 / np.abs(self.thres_fast_speed - self.thres_slow_speed)
@@ -599,14 +599,16 @@ class VehiclePilot(object):
             alpha = self.speed_m * self.vel[0] + self.speed_q
             alpha = np.clip(alpha, 0, 1)
 
-            local_efficiency[2:4] = 1 - alpha   # efficiency is 0 at high speeds and 1 at low speeds
+            # efficiency is 0 at high speeds and 1 at low speeds
+            local_efficiency[2:4] = 1 - alpha
 
 
         # update the inverse thruster allocation matrix based on current thruster efficiency
         self.local_inv_TAM = ta.tam_weighted_inverse(self.local_TAM, local_efficiency)
 
 
-        # update speeds limits using available thrust and efficiencies
+        # TODO: move this together with the thruster efficiency estimation in a diagnostic callback (diagnostics)
+        # (diagnostics): update speeds limits using available thrust and efficiencies
         if self.fault_speeds:
             self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
 
