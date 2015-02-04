@@ -225,11 +225,12 @@ class LineStrategy(PathStrategy):
             self.proximity = False
 
             if self.cnt < len(self.points):
-                print('WP reached, moving to the next one')
+                #print('WP reached, moving to the next one')
+                pass
             else:
                 self.path_completed = True
                 self.des_pos = self.points[-1]
-                print('Path completed')
+                #print('Path completed')
 
 
 
@@ -318,7 +319,7 @@ class FastTimeStrategy(PathStrategy):
             if np.all(np.abs(waypoint_error) < self.tolerances):
                 self.path_completed = True
                 self.des_pos = self.points[-1]
-                print('Path completed')
+                #print('Path completed')
 
         # if vehicle is too far from the point stop timer
         if tt.distance_between(position, self.des_pos, spacing_dim=3) > self.thrs_dist:

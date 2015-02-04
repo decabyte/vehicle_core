@@ -291,11 +291,17 @@ class PathController(object):
         if point is not None:
             self.des_pos = point
 
+        # set internal state
         self.state = S_HOVERING
+
+        # update path status
+        if self.path_status not in (P_COMPLETED, P_TIMEOUT):
+            self.path_status = P_IDLE
+
         return {}
 
 
-    def cmd_reset(self, **kwargs):
+    def cmd_reset(self, reason='abort', **kwargs):
         try:
             self.state = S_RESET
 
@@ -305,7 +311,10 @@ class PathController(object):
 
             self.path_timeout = 0
             self.path_time_end = -1
-            self.path_status = P_ABORT
+
+            # TODO: change this by parsing the "reason" parameter (abort --> P_ABORT, anything else --> P_IDLE)
+            if self.path_status != P_IDLE:
+                self.path_status = P_ABORT
 
             self.publish_path_status()
 
@@ -358,7 +367,7 @@ class PathController(object):
             self.path_time_start = rospy.Time().now().to_sec()
 
             rospy.loginfo('%s new path accepted: %d', self.name, self.path_id)
-            rospy.loginfo('%s path to follow:\n%s', self.name, self.path_obj.points)
+            #rospy.loginfo('%s path to follow:\n%s', self.name, self.path_obj.points)
         except KeyValue:
             rospy.logerr('%s unknown path mode: %s', self.name, self.path_mode)
             return {'error': 'unknown path mode'}
@@ -415,7 +424,11 @@ class PathController(object):
 
             ps.time_elapsed = self.path_time_elapsed
             ps.speed_average = ps.distance_completed / ps.time_elapsed
-            ps.time_arrival = ps.distance_left / ps.speed_average
+
+            if ps.speed_average != 0:
+                ps.time_arrival = ps.distance_left / ps.speed_average
+            else:
+                ps.time_arrival = np.Inf
 
             ps.time_start = self.path_time_start
             ps.time_end = self.path_time_end
