@@ -4,8 +4,33 @@
     <arg name="verbose" default="-v" />
 
     <!-- load the simulation config -->
-    <rosparam command="load" file="$(find vehicle_core)/conf/pid_sim.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
+    <rosparam command="load" file="$(find vehicle_core)/conf/vehicle_model.yaml"/>
+
+    <!-- use autotuning PILIM controller if AUTO env is set -->
+    <group if="$(optenv AUTO 0)">
+        <!-- use model-based controller variant if MODEL env is set -->
+        <group if="$(optenv MODEL 0)">
+            <rosparam command="load" file="$(find vehicle_core)/conf/auto_sim_model.yaml" />
+        </group>
+
+        <group unless="$(optenv MODEL 0)">
+            <rosparam command="load" file="$(find vehicle_core)/conf/auto_sim.yaml" />
+        </group>
+    </group>
+
+    <!-- use classic PILIM controller if AUTO env is not set -->
+    <group unless="$(optenv AUTO 0)">
+        <!-- use model-based controller variant if MODEL env is set -->
+        <group if="$(optenv MODEL 0)">
+            <rosparam command="load" file="$(find vehicle_core)/conf/pid_sim_model.yaml" />
+        </group>
+
+        <group unless="$(optenv MODEL 0)">
+            <rosparam command="load" file="$(find vehicle_core)/conf/pid_sim.yaml" />
+        </group>
+    </group>
+
 
     <!-- start the vehicle controller -->
     <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="$(arg verbose)" output="screen">

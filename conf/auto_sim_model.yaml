@@ -4,7 +4,7 @@ pilot:
     prioritize_axis: true
 
     # thruster mapping
-    adaptive_yaw: false
+    adaptive_yaw: true
     threshold_fast: 0.2
     threshold_slow: 0.1
 
@@ -15,8 +15,7 @@ pilot:
         feedforward_model: false
         linearized_model: true
 
-
-         # position gains
+        # position gains
         pos_x: { kp: 0.250, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 8 m
         pos_y: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 2 m
         pos_z: { kp: 0.50, ki: 0.005, kd: 0.0, lim: 0.1 }
@@ -45,5 +44,4 @@ pilot:
 
         # pitch controller parameters
         pitch_surge_coeff: 1.2
-        pitch_rest_coeff: 36.0  # is not needed because is already taken into account in the model
-
+        pitch_rest_coeff: 36.0    # is not needed because is already taken into account in the model
