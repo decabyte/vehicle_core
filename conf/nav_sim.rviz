@@ -72,7 +72,13 @@ Visualization Manager:
         All Enabled: true
         base_link:
           Value: true
+        circular_sonar_frame:
+          Value: true
         odom:
+          Value: true
+        p_and_tilt_body:
+          Value: true
+        sonar_MB:
           Value: true
       Marker Scale: 1
       Name: TF
@@ -82,7 +88,10 @@ Visualization Manager:
       Tree:
         odom:
           base_link:
-            {}
+            p_and_tilt_body:
+              circular_sonar_frame:
+                sonar_MB:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -129,7 +138,7 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        sonar_body:
+        sonar_MB:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -140,6 +149,14 @@ Visualization Manager:
       Update Interval: 0
       Value: true
       Visual Enabled: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /atr/markers
+      Name: MarkerArray
+      Namespaces:
+        atr: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 57; 57; 57
@@ -176,10 +193,10 @@ Visualization Manager:
         Z: 0
       Name: Current View
       Near Clip Distance: 0.01
-      Pitch: 0.335206
+      Pitch: 0.425206
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 4.01852
+      Yaw: 2.43852
     Saved: ~
 Window Geometry:
   Displays:
@@ -197,5 +214,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1279
-  X: 1930
-  Y: 455
+  X: 1976
+  Y: 446
