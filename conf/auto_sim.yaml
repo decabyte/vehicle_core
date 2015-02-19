@@ -44,6 +44,4 @@ pilot:
 
         # pitch controller parameters
         pitch_surge_coeff: 0.105
-        pitch_rest_coeff: 35.6
-
-
+        pitch_rest_coeff: 35.6            # this param is influenced by the offset_m (trimming!)

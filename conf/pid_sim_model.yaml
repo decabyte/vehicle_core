@@ -5,7 +5,7 @@ pilot:
 
     # thruster mapping
     adaptive_yaw: true
-    threshold_fast: 0.5
+    threshold_fast: 0.2
     threshold_slow: 0.1
 
     # fault tolerant control
@@ -37,3 +37,8 @@ pilot:
 
         # depth compensation (takes into account trimming)
         offset_z: 0.0
+        offset_m: 0.0
+
+        # pitch controller parameters
+        pitch_surge_coeff: 0.105
+        pitch_rest_coeff: 35.6            # this param is influenced by the offset_m (trimming!)

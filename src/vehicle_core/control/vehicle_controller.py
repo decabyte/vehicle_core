@@ -256,6 +256,10 @@ class CascadedController(VehicleController):
             ctrl_config['vel_r']['input_lim'],
         ])
 
+        # pitch controller parameters
+        self.pitch_surge_coeff = float(ctrl_config.get('pitch_surge_coeff', 0.0))
+        self.pitch_rest_coeff = float(ctrl_config.get('pitch_rest_coeff', 0.0))
+
 
     def update(self, position, velocity):
         # store nav updates
@@ -344,9 +348,9 @@ class CascadedController(VehicleController):
             # feed-forward controller
             self.tau_ctrl = self.tau_ctrl + self.tau_model
 
-
-        # pitch controller (TODO: add the pitch controller from the autotuning version)
+        # pitch controller
         # self.tau_ctrl[4] = self.tau_ctrl[4] + 0.105 * np.abs(self.vel[0])*self.vel[0] + 35.6*np.sin(self.pos[4])
+        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0]) * self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
 
         # hard limits on forces
         #   default: no roll allowed
@@ -543,8 +547,7 @@ class AutoTuningController(CascadedController):
             # ...
 
         # pitch controller
-        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0]) * self.vel[
-            0] + self.pitch_rest_coeff * np.sin(self.pos[4])
+        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0]) * self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
 
         # hard limits on forces
         #   default: no roll allowed

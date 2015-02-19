@@ -12,8 +12,8 @@ pilot:
     controller:
         # general options
         type: 'autotuning'
-        feedforward_model: false
-        linearized_model: true
+        feedforward_model: true
+        linearized_model: false
 
         # position gains
         pos_x: { kp: 0.250, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 8 m
@@ -43,5 +43,5 @@ pilot:
         offset_m: 0.0
 
         # pitch controller parameters
-        pitch_surge_coeff: 1.2
-        pitch_rest_coeff: 36.0    # is not needed because is already taken into account in the model
+        pitch_surge_coeff: 0.105
+        pitch_rest_coeff: 35.6            # this param is influenced by the offset_m (trimming!)
