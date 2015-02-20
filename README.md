@@ -68,12 +68,12 @@ Run Real Operation
 ---
 1) Start Nessie A (use SSH on Nessie5A):
   ```
-  roslaunch nessie_bringup nessie_A_basic.launch
+  roslaunch vehicle_core nessie_A_basic.launch
   ```
   
 2) Start Nessie B (use SSH on Nessie5B):
   ```
-  roslaunch nessie_bringup nessie_B_basic.launch
+  roslaunch vehicle_core nessie_B_basic.launch
   ```
   
 3) On Nessie A:

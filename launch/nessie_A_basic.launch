@@ -1,0 +1,27 @@
+<launch>
+	
+	<!-- to set a Namespace just fill ns-->
+	<group ns="/">
+		<!-- load platform parameters (needed for old Nessie code) -->
+		<include file="$(find nessie_bringup)/launch/load_nessie5_params.launch" />
+
+		<!-- start all the fundamental nodes (from old Nessie code) -->
+		<node name="Pressure" pkg="keller_pressure" type="pressure" respawn="false"/>
+		<node name="Compass" pkg="pni_compass" type="compass" respawn="false"/>
+		<node name="GPS" pkg="gps" type="gps" respawn="false"/>
+		<node name="DVL" pkg="teledyne_dvl" type="dvl" respawn="false"/>
+
+        <!-- start all the fundamental nodes (from new Nessie code) -->
+        <node name="kvh_gyro" pkg="kvh_gyroscope" type="node_kvh.py" respawn="false">
+            <!-- driver configuration -->
+            <param name="mode" value="A"/>
+            <param name="rate" value="10.0"/>
+            <param name="latitude" value="55.912"/>
+        </node>
+
+        <!-- platform_monitor (provides indicators and basic measurements) -->
+		<include file="$(find platform_monitor)/launch/platform_monitor.launch" />
+		<!-- <include file="$(find energy_monitor)/launch/energy_monitor.launch" /> -->
+	</group>
+
+</launch>

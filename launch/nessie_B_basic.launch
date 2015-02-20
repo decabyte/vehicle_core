@@ -1,0 +1,9 @@
+<launch>
+	<!-- in Nessie VII AUV the PC104B is left empty from basic nodes -->
+
+	<!-- to set a Namespace just fill ns-->
+	<group ns="/">
+
+	</group>
+
+</launch>
