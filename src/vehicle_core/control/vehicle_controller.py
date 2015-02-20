@@ -167,9 +167,6 @@ class CascadedController(VehicleController):
         self.feedforward_model = bool(ctrl_config.get('feedforward_model', False))
         self.linearized_model = bool(ctrl_config.get('linearized_model', False))
 
-        # depth pitch control
-        #self.depth_pitch_control = bool(ctrl_config.get('depth_pitch_control', False))
-
         if self.feedforward_model or self.linearized_model:
             self.model = vm.VehicleModel(model_config)
 
@@ -318,16 +315,6 @@ class CascadedController(VehicleController):
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
 
 
-        # # velocity depth control based on pitch control
-        # if self.depth_pitch_control:
-        #     self.err_intermediate = np.clip(self.pos[4] - self.tau_ctrl[2], -self.vel_input_lim[4], self.vel_input_lim[4])
-        #     self.err_intermediate_der = (self.err_intermediate - self.err_intermediate_prev) / self.dt
-        #     self.err_intermediate_int = np.clip(self.err_intermediate_int + self.err_intermediate, -self.vel_lim[4], self.vel_lim[4])
-        #     self.err_intermediate_prev = self.err_intermediate
-        #
-        #     self.tau_ctrl[2] = (-self.vel_Kp[4] * self.err_intermediate) + (-self.vel_Kd[4] * self.err_intermediate_der) + (-self.vel_Ki[4] * self.err_intermediate_int)
-
-
         # linearized the plant is its model and the sensor measurements
         #   enabled only if the feed-forward controller is not used!
         if self.linearized_model and not self.feedforward_model:
@@ -348,9 +335,8 @@ class CascadedController(VehicleController):
             # feed-forward controller
             self.tau_ctrl = self.tau_ctrl + self.tau_model
 
-        # pitch controller
-        # self.tau_ctrl[4] = self.tau_ctrl[4] + 0.105 * np.abs(self.vel[0])*self.vel[0] + 35.6*np.sin(self.pos[4])
-        self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0]) * self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
+        # pitch controller (NOT WORKING!)
+        #self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0]) * self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
 
         # hard limits on forces
         #   default: no roll allowed
