@@ -264,7 +264,8 @@ class PathController(object):
             res.result = False
 
         res.info = [KeyValue(key, value) for key, value in info.items()]
-        res.state = str(self.state)
+        res.state = STATUS_PATH[self.state]
+
         return res
 
 
@@ -272,14 +273,15 @@ class PathController(object):
         try:
             response = self.srv_controller.call(True)
             rospy.loginfo('%s switching on controller: %s', self.name, response)
+
             self.state = S_RUNNING
             self.path_status = P_RUNNING
             self.path_time_end = -1
-
         except rospy.ServiceException:
             tb = traceback.format_exc()
             rospy.logerr('%s: controller service error:\n%s', self.name, tb)
             return {'error': 'controller switch failed'}
+
         return {}
 
 
