@@ -51,6 +51,11 @@ Run Simulator
   ```
   rosservice call /pilot/switch "request: true"
   ```
+  
+5) Send a command to the pilot using the command-line (i.e. move the vehile to zero position):
+  ```
+  rostopic pub /pilot/position_req vehicle_interface/PilotRequest "position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
+  ```
 
 Extra: For trajectory tracking, enable the path
   ```
