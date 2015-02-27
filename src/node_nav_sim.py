@@ -67,10 +67,12 @@ import tf.transformations as tft
 from vehicle_core.model import vehicle_model as vm
 from vehicle_core.model import dynamic_model as dm
 
-
 from nav_msgs.msg import Odometry
-from vehicle_interface.msg import Vector6Stamped
 from auv_msgs.msg import NavSts
+from std_srvs.srv import Empty, EmptyResponse
+
+from vehicle_interface.msg import Vector6Stamped
+from vehicle_interface.srv import Vector6Service, Vector6ServiceResponse
 
 
 # params
@@ -81,6 +83,9 @@ TOPIC_NAV = 'nav/nav_sts'
 TOPIC_THR = 'thrusters/commands'
 TOPIC_FRC = 'forces/sim/body'
 TOPIC_NET = 'forces/sim/net'
+
+SRV_RESET = 'nav/reset'
+SVR_OFFSET = 'nav/offset'
 
 TOPIC_ODM = 'nav/odometry'
 FRAME_PARENT = 'odom'
@@ -114,9 +119,9 @@ class NavigationSimulator(object):
         self.verbose = kwargs.get('verbose', False)
 
         # state
-        self.depth_bottom = kwargs.get('depth_bottom', 50)
-        self.tau = np.zeros(6)
         self.t = 0.0
+        self.tau = np.zeros(6)
+        self.depth_bottom = kwargs.get('depth_bottom', 50)
 
         # dynamic model
         self.model_config = rospy.get_param('sim/model', dict())
@@ -133,6 +138,9 @@ class NavigationSimulator(object):
         self.vel = np.zeros(6)      # velocity:	linear and angular velocity (body-frame)
         self.pos = np.zeros(6)      # position:	linear and angular position
         self.pos_prev = np.zeros(6) # position: linear and angular position
+
+        # nav offset
+        self.offset_pos = np.zeros(6)
 
         # initial conditions
         self.pos = initial_position
@@ -171,6 +179,9 @@ class NavigationSimulator(object):
         self.pub_odom = rospy.Publisher(self.topic_odom, Odometry, tcp_nodelay=True, queue_size=1)
         #self.pub_force = rospy.Publisher(self.output_forces, WrenchStamped, tcp_nodelay=True, queue_size=1)
 
+        self.srv_zero = rospy.Service(SRV_RESET, Empty, self.handle_reset)
+        self.srv_offset = rospy.Service(SVR_OFFSET, Vector6Service, self.handle_offset)
+
         # timers
         self.sim_loop = rospy.Rate(sim_rate)
         self.t_pub = rospy.Timer(rospy.Duration(1 / pub_rate), self.publish_navigation)
@@ -181,6 +192,22 @@ class NavigationSimulator(object):
             #self.t_net = rospy.Timer(rospy.Duration(1 / pub_rate), self.send_forces)
 
 
+    def handle_reset(self, req):
+        """This is setting resetting the status of the navigation simulator."""
+
+        self.pos = np.zeros(6)
+        self.vel = np.zeros(6)
+        self.pos_prev = np.zeros(6)
+
+        rospy.logwarn('%s: resetting the nav simulator ...', self.name)
+        return EmptyResponse()
+
+    def handle_offset(self, req):
+        """This is setting the nav offset using the user request."""
+        self.offset_pos = np.array(req.request)
+
+        rospy.logwarn('%s: offsetting the nav origin with %s ...', self.name, self.offset_pos)
+        return Vector6ServiceResponse(True, self.offset_pos)
 
     def handle_forces(self, data):
         # load forces from message
@@ -189,14 +216,26 @@ class NavigationSimulator(object):
 
 
     def publish_navigation(self, event=None):
-        self.send_nav_sts()
-        self.send_odom()
+        """This function is used for publishing sending data outside of this node.
+
+        It applies the navigation offset, used for indoor operations without the use of the global positioning system.
+        """
+        # current state
+        pos = np.copy(self.pos)
+        vel = np.copy(self.vel)
+
+        # apply offsets (simple strategy)
+        pos[0:3] += self.offset_pos[0:3]
+
+        # send ROS messages
+        self.send_nav_sts(pos, vel)
+        self.send_odom(pos, vel)
 
 
-    def send_odom(self):
+    def send_odom(self, pos, vel):
         # convert to xyz
-        odom_pos = np.dot( self.rot_mat, self.pos.reshape((6,1)) ).flatten()
-        odom_vel = np.dot( self.rot_mat, self.vel.reshape((6,1)) ).flatten()
+        odom_pos = np.dot( self.rot_mat, pos.reshape((6,1)) ).flatten()
+        odom_vel = np.dot( self.rot_mat, vel.reshape((6,1)) ).flatten()
 
         # tf broadcast
         translation = (odom_pos[0], odom_pos[1], odom_pos[2])
@@ -229,28 +268,28 @@ class NavigationSimulator(object):
         self.pub_odom.publish(od)
 
 
-    def send_nav_sts(self):
+    def send_nav_sts(self, pos, vel):
         ns = NavSts()
         ns.header.stamp = rospy.Time.now()
         ns.header.frame_id = self.frame_child
-        ns.position.north = self.pos[0]
-        ns.position.east = self.pos[1]
-        ns.position.depth = self.pos[2]
-        ns.orientation.roll = self.pos[3]
-        ns.orientation.pitch = self.pos[4]
-        ns.orientation.yaw = self.pos[5]
+        ns.position.north = pos[0]
+        ns.position.east = pos[1]
+        ns.position.depth = pos[2]
+        ns.orientation.roll = pos[3]
+        ns.orientation.pitch = pos[4]
+        ns.orientation.yaw = pos[5]
 
         # NOTE: altitude implementation may be improved using external topics
         # for instance uwsim ones, thus its implementation is left outside the core part
         # of the navigation simulator in dymanics_simulator.py
-        ns.altitude = self.depth_bottom - self.pos[2]
+        ns.altitude = self.depth_bottom - pos[2]
 
-        ns.body_velocity.x = self.vel[0]
-        ns.body_velocity.y = self.vel[1]
-        ns.body_velocity.z = self.vel[2]
-        ns.orientation_rate.roll = self.vel[3]
-        ns.orientation_rate.pitch = self.vel[4]
-        ns.orientation_rate.yaw = self.vel[5]
+        ns.body_velocity.x = vel[0]
+        ns.body_velocity.y = vel[1]
+        ns.body_velocity.z = vel[2]
+        ns.orientation_rate.roll = vel[3]
+        ns.orientation_rate.pitch = vel[4]
+        ns.orientation_rate.yaw = vel[5]
 
         self.pub_navs.publish(ns)
 
@@ -269,23 +308,10 @@ class NavigationSimulator(object):
     #     self.pub_force.publish(ws)
 
 
-    def compute_acceleration(self, position, velocity):
-        """This function is used as basic step function for different integrators.
-
-        :param position:
-        :param velocity:
-        :return: velocity, acceleration
-        """
-
-        # calculate acceleration from forces using the dynamic model
-        acceleration = self.model.update_acceleration(self.tau, position, velocity)
-
-        return velocity, acceleration
-
-
     def int_naive(self):
         """naive integration"""
-        _, self.acc = self.compute_acceleration(self.pos, self.vel)
+        # calculate acceleration from forces using the dynamic model
+        self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel)
 
         # integration of velocity and convert to earth-fixed reference
         self.vel = self.vel + (self.acc * self.dt)
@@ -304,7 +330,8 @@ class NavigationSimulator(object):
             [1]: http://en.wikipedia.org/wiki/Verlet_integration
             [2]: http://research.ncl.ac.uk/game/mastersdegree/gametechnologies/physicsnumericalintegration/Physics%20Tutorial%202%20-%20Numerical%20Integration.pdf
         """
-        _, acc_prev = self.compute_acceleration(self.pos, self.vel)
+        # calculate acceleration from forces using the dynamic model
+        acc_prev = self.model.update_acceleration(self.tau, self.pos, self.vel)
 
         # convert velocity to earth-fixed reference
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
@@ -316,8 +343,8 @@ class NavigationSimulator(object):
         # update position
         self.pos = self.pos + (vel_efec * self.dt) + (acc_efec * self.dt * self.dt)
 
-        # compute the new velocity
-        _, self.acc = self.compute_acceleration(self.pos, self.vel)
+        # compute the new velocity from forces using the dynamic model
+        self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel)
         self.vel = self.vel + 0.5 * (acc_prev + self.acc) * self.dt
 
 
@@ -329,7 +356,8 @@ class NavigationSimulator(object):
         vel = state[6:12]
 
         # invoke main computation
-        vel, acc = self.compute_acceleration(pos, vel)
+        acc = self.model.update_acceleration(self.tau, pos, vel)
+        #vel, acc = self.compute_acceleration(pos, vel)
 
         # convert velocity to global coordinates as we want position in global coordinates
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
@@ -401,10 +429,14 @@ class NavigationSimulator(object):
           acc:   %s
           vel:   %s
           pos:   %s %s
+          off_pos: %s %s
           altitude: %s
         """ % (
             self.tau, self.model.F_net,
-            self.acc, self.vel, self.pos[0:3], np.rad2deg(self.pos[3:6]), self.depth_bottom
+            self.acc, self.vel,
+            self.pos[0:3], np.rad2deg(self.pos[3:6]),
+            self.offset_pos[0:3], np.rad2deg(self.offset_pos[3:6]),
+            self.depth_bottom,
         )
 
 
