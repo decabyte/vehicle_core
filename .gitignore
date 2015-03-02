@@ -15,7 +15,8 @@
 # Build related #
 **/CMakeFiles
 **/CMakeCache.txt
-**/.cmake_install.cmake
+**/cmake_install.cmake
+**/Makefile
 **/bin
 **/build
 **/lib
