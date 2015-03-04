@@ -81,26 +81,25 @@ Run Real Operation
   roslaunch vehicle_core nessie_B_basic.launch
   ```
   
-3) On Nessie A:
-  ```
-  roslaunch thrusters_controller driver.launch
-  roslaunch vehicle_core pilot_real.launch
-  ```
-  
-4) On Trieste or any external laptop:
+3) On Trieste (or any external laptop) start the joystick driver:
   ```
   roslaunch vehicle_core joystick_js0.launch
   ```
   
-5) On Nessie A (after getting a correct initial position):
+3b) Optional set the vehicle compass to use an artificial north (offset):
   ```
+  rosparam set /conf/tcm/artificial_north 0.0
+  ```
+  
+4) On Nessie A (after getting a correct initial position):
+  ```
+  roslaunch vehicle_core pilot_real.launch
   rosrun auv_nav auv_nav
   ```
 
 6) Optional visualization (on Trieste or external laptop run):
   ```
-  roscd vehicle_core/conf
-  rosrun rviz rviz -d nessie_wavetank.rviz
+  roslaunch vehicle_core nav_visual_nessie.launch
   ```
   
 7) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):

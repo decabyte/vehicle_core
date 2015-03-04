@@ -1,6 +1,6 @@
 <launch>
 	
-	<!-- to set a Namespace just fill ns-->
+	<!-- start nodes from old Nessie code -->
 	<group ns="/">
 		<!-- load platform parameters (needed for old Nessie code) -->
 		<include file="$(find nessie_bringup)/launch/load_nessie5_params.launch" />
@@ -10,18 +10,25 @@
 		<node name="Compass" pkg="pni_compass" type="compass" respawn="false"/>
 		<node name="GPS" pkg="gps" type="gps" respawn="false"/>
 		<node name="DVL" pkg="teledyne_dvl" type="dvl" respawn="false"/>
-
-        <!-- start all the fundamental nodes (from new Nessie code) -->
-        <node name="kvh_gyro" pkg="kvh_gyroscope" type="node_kvh.py" respawn="false">
-            <!-- driver configuration -->
-            <param name="mode" value="A"/>
-            <param name="rate" value="10.0"/>
-            <param name="latitude" value="55.912"/>
-        </node>
-
-        <!-- platform_monitor (provides indicators and basic measurements) -->
-		<include file="$(find platform_monitor)/launch/platform_monitor.launch" />
-		<!-- <include file="$(find energy_monitor)/launch/energy_monitor.launch" /> -->
 	</group>
+
+    <!-- start nodes from new Nessie code -->
+    <!--    they don't require to be run in a namespace unless multi vehicle operation are need -->
+
+    <!-- gyroscope is explicitly added or it can be used by including its launch file -->
+    <node name="kvh_gyro" pkg="kvh_gyroscope" type="node_kvh.py" respawn="false">
+        <!-- driver configuration -->
+        <param name="mode" value="A"/>
+        <param name="rate" value="10.0"/>
+        <param name="latitude" value="55.912"/>
+    </node>
+    <!--<include file="$(find kvh_gyroscope)/launch/kvh_gyro.launch" />-->
+
+    <!-- thruster drivers -->
+    <include file="$(find thrusters_controller)/launch/driver.launch" />
+
+    <!-- platform_monitor (provides indicators and basic measurements) -->
+    <include file="$(find platform_monitor)/launch/platform_monitor.launch" />
+    <!-- <include file="$(find energy_monitor)/launch/energy_monitor.launch" /> -->
 
 </launch>
