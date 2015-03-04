@@ -121,8 +121,9 @@ PATH_FAST = 'fast'
 PATH_LINES = 'lines'
 
 # timing
-RATE_NODE = 5        # Hz
-RATE_STATUS = 0.5    # Hz
+RATE_NODE = 5           # Hz
+RATE_STATUS = 0.5       # Hz
+DEFAULT_TIMEOUT = 30    # sec
 
 
 # utils
@@ -135,6 +136,9 @@ class PathController(object):
         self.name = name
 
         # state
+        self.rate_node = 1.0 / RATE_NODE
+        self.rate_status = 1.0 / RATE_STATUS
+
         self.state = S_RESET
         self.t0 = rospy.Time.now().to_sec()
 
@@ -148,6 +152,8 @@ class PathController(object):
         self.path_time_start = -1
         self.path_time_end = -1
         self.path_time_elapsed = 0
+
+        self.hover_timeout = DEFAULT_TIMEOUT
 
         self.position = np.zeros(6)          # north, east, depth, roll, pitch, yaw
         self.velocity = np.zeros(6)          # u, v, w, p, q, r
@@ -176,7 +182,7 @@ class PathController(object):
         self.srv_path = rospy.Service(SRV_PATH_CONTROL, PathService, self.handle_path_srv)
 
         # timers
-        self.t_path_status = rospy.Timer(rospy.Duration(1.0 / RATE_STATUS), self.publish_path_status)
+        self.t_path_status = rospy.Timer(rospy.Duration(self.rate_status), self.publish_path_status)
 
 
     def loop(self):
@@ -192,7 +198,14 @@ class PathController(object):
         pass
 
     def hovering(self):
-        self.send_position_request()        # maybe send a stay request?
+        if self.hover_timeout is None:
+            self.send_position_request()        # maybe send a stay request?
+        else:
+            if self.hover_timeout > 0:
+                self.hover_timeout -= self.rate_node
+                self.send_position_request()    # maybe send a stay request?
+            else:
+                self.cmd_reset()
 
     def running(self):
         if self.path_obj is None or self.path_obj.path_completed is True:
@@ -209,7 +222,7 @@ class PathController(object):
             self.publish_path_status()
 
             # switch to hover mode
-            self.cmd_hover()
+            self.cmd_hover(timeout=DEFAULT_TIMEOUT)
         else:
             # default case navigation is allowed and running
             self.path_obj.update(self.position, self.velocity)
@@ -225,7 +238,7 @@ class PathController(object):
                 self.publish_path_status()
 
                 # switch to hover mode
-                self.cmd_hover(self.des_pos)
+                self.cmd_hover(self.des_pos, timeout=DEFAULT_TIMEOUT)
 
             #rospy.logdebug('%s position request: %s', self.name, self.des_pos)
 
@@ -285,13 +298,16 @@ class PathController(object):
         return {}
 
 
-    def cmd_hover(self, point=None, **kwargs):
+    def cmd_hover(self, point=None, timeout=None, **kwargs):
         # default hover at the last known pos
         self.des_pos = self.position
 
         # user gave us a specific point
         if point is not None:
             self.des_pos = point
+
+        # user gave us a timeout for hovering
+        self.hover_timeout = timeout
 
         # set internal state
         self.state = S_HOVERING
