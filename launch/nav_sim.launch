@@ -32,7 +32,8 @@
 
         <!-- odometry configuration (defaults are used for single vehicle operations) -->
         <param name="topic_odom" value="nav/odometry"/>
-        <param name="frame_parent" value="odom"/>
+        <param name="frame_parent" value="world"/>
+        <param name="frame_odom" value="map"/>
         <param name="frame_child" value="base_link"/>
     </node>
 

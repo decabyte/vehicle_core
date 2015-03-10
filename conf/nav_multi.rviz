@@ -78,7 +78,7 @@ Visualization Manager:
           Value: true
         nessie_b:
           Value: true
-        odom:
+        map:
           Value: true
       Marker Scale: 2
       Name: TF
@@ -86,7 +86,7 @@ Visualization Manager:
       Show Axes: false
       Show Names: true
       Tree:
-        odom:
+        map:
           nessie_a:
             {}
           nessie_b:
@@ -163,7 +163,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 67; 67; 67
-    Fixed Frame: odom
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:

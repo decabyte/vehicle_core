@@ -85,10 +85,11 @@ TOPIC_FRC = 'forces/sim/body'
 TOPIC_NET = 'forces/sim/net'
 
 SRV_RESET = 'nav/reset'
-SVR_OFFSET = 'nav/offset'
+SRV_OFFSET = 'nav/offset'
 
 TOPIC_ODM = 'nav/odometry'
-FRAME_PARENT = 'odom'
+FRAME_PARENT = 'world'
+FRAME_ODOM = 'odom'
 FRAME_CHILD = 'base_link'
 
 
@@ -111,6 +112,9 @@ class NavigationSimulator(object):
     This class handles force inputs and publish navigation messages simulating the behaviour of the navigation modules
     running inside the vehicle during real operations. It also offers extra topics useful for monitoring the vehicle during
     simulation, like the total net force acting on the vehicle or the status of the internal navigation simulator.
+
+    References:
+        [1] http://www.ros.org/reps/rep-0103.html
     """
 
     def __init__(self, name, initial_position, sim_rate, pub_rate, **kwargs):
@@ -160,8 +164,10 @@ class NavigationSimulator(object):
         self.br = tf.TransformBroadcaster()
         self.topic_odom = kwargs.get('topic_odom', TOPIC_ODM)
         self.frame_parent = kwargs.get('frame_parent', FRAME_PARENT)
+        self.frame_odom = kwargs.get('frame_odom', FRAME_ODOM)
         self.frame_child = kwargs.get('frame_child', FRAME_CHILD)
 
+        # odometry rotation matrix
         rot_mat_z = np.zeros((6,6))
         rot_mat_z[0:3, 0:3] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 0, 1]))[:3, :3]
         rot_mat_z[3:6, 3:6] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 0, 1]))[:3, :3]
@@ -170,7 +176,6 @@ class NavigationSimulator(object):
         rot_mat_y[0:3, 0:3] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 1, 0]))[:3, :3]
         rot_mat_y[3:6, 3:6] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 1, 0]))[:3, :3]
 
-        # odometry rotation matrix
         self.rot_mat = np.dot( rot_mat_z, rot_mat_y )
 
         # ros interface
@@ -180,7 +185,7 @@ class NavigationSimulator(object):
         #self.pub_force = rospy.Publisher(self.output_forces, WrenchStamped, tcp_nodelay=True, queue_size=1)
 
         self.srv_zero = rospy.Service(SRV_RESET, Empty, self.handle_reset)
-        self.srv_offset = rospy.Service(SVR_OFFSET, Vector6Service, self.handle_offset)
+        self.srv_offset = rospy.Service(SRV_OFFSET, Vector6Service, self.handle_offset)
 
         # timers
         self.sim_loop = rospy.Rate(sim_rate)
@@ -229,24 +234,46 @@ class NavigationSimulator(object):
 
         # send ROS messages
         self.send_nav_sts(pos, vel)
-        self.send_odom(pos, vel)
+
+        # send TF messages
+        self.send_tf_odom(pos, vel)
+        self.send_tf_nav(pos, vel)
 
 
-    def send_odom(self, pos, vel):
-        # convert to xyz
-        odom_pos = np.dot( self.rot_mat, pos.reshape((6,1)) ).flatten()
-        odom_vel = np.dot( self.rot_mat, vel.reshape((6,1)) ).flatten()
+    def send_tf_nav(self, pos, val):
+        """This is publishing the correct TF transformation with respect to vehicle frame
+
+        It broadcast the transform using the same convention NED used for the position and velocity vectors.
+        """
+        translation = (pos[0], pos[1], pos[2])
+        rotation = tft.quaternion_from_euler(pos[3], pos[4], pos[5], axes='sxyz')
+        child = '{}_{}'.format(self.frame_child, 'ned')
+
+        self.br.sendTransform(translation, rotation, rospy.Time.now(), child, self.frame_odom)
+
+
+    def send_tf_odom(self, pos, vel):
+        """This is publishing the correct TF transformation with respect to RViz visualizer
+
+        It applies rotations to the current position and velocity vectors from NED to XYZ frames.
+        """
+        # # convert to xyz
+        # odom_pos = np.dot( self.rot_mat, pos.reshape((6,1)) ).flatten()
+        # odom_vel = np.dot( self.rot_mat, vel.reshape((6,1)) ).flatten()
+
+        odom_pos = (pos[0], -pos[1], -pos[2], pos[3], -pos[4], -pos[5])
+        odom_vel = (vel[0], -vel[1], -vel[2], vel[3], -vel[4], -vel[5])
 
         # tf broadcast
         translation = (odom_pos[0], odom_pos[1], odom_pos[2])
         rotation = tft.quaternion_from_euler(odom_pos[3], odom_pos[4], odom_pos[5], axes='sxyz')
 
-        self.br.sendTransform(translation, rotation, rospy.Time.now(), self.frame_child, self.frame_parent)
+        self.br.sendTransform(translation, rotation, rospy.Time.now(), self.frame_child, self.frame_odom)
 
         # odometry message
         od = Odometry()
         od.header.stamp = rospy.Time.now()
-        od.header.frame_id = self.frame_parent
+        od.header.frame_id = self.frame_odom
         od.child_frame_id = self.frame_child
 
         od.pose.pose.position.x = odom_pos[0]		# north
@@ -476,6 +503,7 @@ def main():
     config = {
         'topic_odom': rospy.get_param('~topic_odom', TOPIC_ODM),
         'frame_parent': rospy.get_param('~frame_parent', FRAME_PARENT),
+        'frame_odom': rospy.get_param('~frame_odom', FRAME_ODOM),
         'frame_child': rospy.get_param('~frame_child', FRAME_CHILD),
         'verbose': verbose
     }
@@ -483,7 +511,7 @@ def main():
 
     # console info
     rospy.loginfo('%s: odom topic: %s', name, config['topic_odom'])
-    rospy.loginfo('%s: parent frame: %s', name, config['frame_parent'])
+    rospy.loginfo('%s: odom frame: %s', name, config['frame_odom'])
     rospy.loginfo('%s: child frame: %s', name, config['frame_child'])
     rospy.loginfo('%s: simulation rate: %s Hz', name, sim_rate)
     rospy.loginfo('%s: publisher rate: %s Hz', name, pub_rate)
