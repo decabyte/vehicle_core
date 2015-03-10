@@ -237,10 +237,10 @@ class NavigationSimulator(object):
 
         # send TF messages
         self.send_tf_odom(pos, vel)
-        self.send_tf_nav(pos, vel)
+        #self.send_tf_ned(pos, vel)
 
 
-    def send_tf_nav(self, pos, val):
+    def send_tf_ned(self, pos, vel):
         """This is publishing the correct TF transformation with respect to vehicle frame
 
         It broadcast the transform using the same convention NED used for the position and velocity vectors.
@@ -261,8 +261,9 @@ class NavigationSimulator(object):
         # odom_pos = np.dot( self.rot_mat, pos.reshape((6,1)) ).flatten()
         # odom_vel = np.dot( self.rot_mat, vel.reshape((6,1)) ).flatten()
 
+        # conversion from old auv_nav implementation (please check it twice!)
         odom_pos = (pos[0], -pos[1], -pos[2], pos[3], -pos[4], -pos[5])
-        odom_vel = (vel[0], -vel[1], -vel[2], vel[3], -vel[4], -vel[5])
+        odom_vel = (vel[0], vel[1], vel[2], vel[3], vel[4], vel[5])
 
         # tf broadcast
         translation = (odom_pos[0], odom_pos[1], odom_pos[2])
@@ -308,7 +309,7 @@ class NavigationSimulator(object):
 
         # NOTE: altitude implementation may be improved using external topics
         # for instance uwsim ones, thus its implementation is left outside the core part
-        # of the navigation simulator in dymanics_simulator.py
+        # of the navigation simulator in dynamics_simulator.py
         ns.altitude = self.depth_bottom - pos[2]
 
         ns.body_velocity.x = vel[0]
