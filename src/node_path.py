@@ -470,7 +470,7 @@ class PathController(object):
         for n, point in enumerate(self.path_obj.points):
             mm = Marker()
             mm.header.stamp = rospy.Time.now()
-            mm.header.frame_id = 'odom'
+            mm.header.frame_id = 'map'
             mm.ns = 'current_path'
             mm.id = n
             mm.type = Marker.SPHERE
