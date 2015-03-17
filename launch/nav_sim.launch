@@ -11,6 +11,8 @@
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/thruster_model.yaml"/>
 
+    <param name="robot_description" command="cat $(find vehicle_core)/data/nessie.urdf"/>
+    
     <!-- start the simulated thrusters -->
     <node name="thrusters_simulator" pkg="vehicle_core" type="node_thruster_sim.py" output="screen">
         <!-- set topics input and outputs -->
