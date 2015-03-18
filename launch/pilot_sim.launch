@@ -2,6 +2,7 @@
 
     <!-- default args -->
     <arg name="verbose" default="-v" />
+    <arg name="topic_output" default="thrusters/commands" />
 
     <!-- load the simulation config -->
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
@@ -35,7 +36,7 @@
     <!-- start the vehicle controller -->
     <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="$(arg verbose)" output="screen">
         <!-- redirect output -->
-        <param name="topic_output" value="thrusters/commands"/>
+        <param name="topic_output" value="$(arg topic_output)"/>
     </node>
 
 </launch>
