@@ -19,7 +19,7 @@ Then to inject a hard-limit fault into the system:
 
     roscd vehicle_core/scripts
     ./fault_clear.sh
-    ./fault_inject.sh 51 85 85 85 85 85
+    ./fault_inject.sh 51 85 85 85 85 85 # (fwd-port, fwd-std, lat-rear, lat-front, vert-rear, vert-front)
     
 This limits the input commands of the port-side surge thruster at 60% of the nominal value. The `fault_inject` script
 takes as input a number that is related to the lower-level commands that the pilot is sending to the thrusters. Therefore 
