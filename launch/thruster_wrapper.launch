@@ -1,0 +1,20 @@
+<launch>
+    <!-- this launch file starts the vehicle_pilot and the thruster_wrapper to inject faults in a running system -->
+
+    <!-- start the vehicle controller -->
+    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="-v" output="screen">
+        <!-- redirect output -->
+        <param name="topic_output" value="thrusters/request"/>
+    </node>
+
+    <!-- start the thruster wrapper -->
+    <node name="thruster_wrapper" pkg="vehicle_core" type="node_thruster_wrapper.py" output="screen">
+        <!-- set topics input and outputs -->
+        <param name="req_input" value="thrusters/request"/>
+        <param name="req_output" value="thrusters/commands"/>
+
+        <param name="feed_input" value="thrusters/status"/>
+        <param name="feed_output" value="thrusters/feedback"/>
+    </node>
+
+</launch>
