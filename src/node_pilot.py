@@ -107,7 +107,7 @@ SRV_FAULT_SPEEDS = 'pilot/fault_speeds'     # enable/disable the adaptive fault 
 TOPIC_GAINS = 'controller/gains'
 
 # diagnostic parameters
-THRESH_METRIC = np.array([20.0, 20.0, 20.0, 20.0, 20.0, 20.0])     # threshold for thrusters diagnostic metric
+THRESH_METRIC = np.array([22.0, 22.0, 22.0, 22.0, 22.0, 22.0])     # threshold for thrusters diagnostic metric
 W_ADJ_COEF = 0.01                                                  # thruster weight adaptation rate
 W_THRESH = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])                # thruster exclusion threshold (% of reference)
 
