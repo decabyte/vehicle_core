@@ -61,9 +61,15 @@ from vehicle_interface.msg import ThrusterCommand, PilotStatus, PilotRequest, Ve
 from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatService, FloatServiceResponse
 
 
-# config
-DEFAULT_RATE = 10                           # Hz
-STATUS_RATE = 2                             # Hz
+# general config
+DEFAULT_RATE = 10                                       # pilot loop rate (Hz)
+STATUS_RATE = 2                                         # pilot report rate (Hz)
+
+# default config
+#   this values can be overridden using external configuration files
+#   please see the reload_config() functions for more details
+MAX_PITCH = np.deg2rad(60.0)                            # default max pitch (rad)
+MAX_SPEED = np.array([1.0, 0.6, 0.6, 0.0, 2.0, 2.0])    # default max speed (m/s and rad/s)
 
 # controller status
 CTRL_DISABLED = 0
@@ -107,13 +113,11 @@ SRV_FAULT_SPEEDS = 'pilot/fault_speeds'     # enable/disable the adaptive fault 
 TOPIC_GAINS = 'controller/gains'
 
 # diagnostic parameters
-THRESH_METRIC = np.array([22.0, 22.0, 22.0, 22.0, 22.0, 22.0])     # threshold for thrusters diagnostic metric
-W_ADJ_COEF = 0.01                                                  # thruster weight adaptation rate
 W_THRESH = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])                # thruster exclusion threshold (% of reference)
-
+THRESH_METRIC = np.array([20.0, 20.0, 20.0, 20.0, 20.0, 20.0])     # threshold for thrusters diagnostic metric
+W_ADJ_COEF = 0.01                                                  # thruster weight adaptation rate (decrease)
+E_ADJ_COEF = W_ADJ_COEF / 1000.0                                   # thruster weight adaptation rate (increase)
 # TODO: use configuration file for loading these parameters
-MAX_PITCH = np.deg2rad(60.0)                            # max pitch (rad)
-MAX_SPEED = np.array([1.0, 0.6, 0.6, 0.0, 2.0, 2.0])    # max speed (m/s and rad/s)
 
 
 # utils
@@ -366,8 +370,10 @@ class VehiclePilot(object):
             indexes = np.where(self.diagnostic_metric > THRESH_METRIC)[0]
 
             # update the efficiency and costs
-            self.thruster_efficiency[indexes] -= W_ADJ_COEF                        # reduce thruster efficiency
-            self.thruster_efficiency = np.maximum(self.thruster_efficiency, 0)      # prevent negative values
+            self.thruster_efficiency[indexes] -= W_ADJ_COEF                    # reduce thruster efficiency
+            self.thruster_efficiency += E_ADJ_COEF                             # increase thruster efficiency
+
+            self.thruster_efficiency = np.clip(self.thruster_efficiency, 0.0, 1.0)      # prevent negative values
 
             # check if is better to exclude inefficient thrusters
             if np.any(self.thruster_efficiency <= W_THRESH):
