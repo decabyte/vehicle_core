@@ -55,6 +55,7 @@ import roslib
 roslib.load_manifest('vehicle_core')
 
 from auv_msgs.msg import NavSts
+from std_srvs.srv import Empty
 from diagnostic_msgs.msg import KeyValue
 
 from vehicle_interface.msg import ThrusterCommand, PilotStatus, PilotRequest, Vector6Stamped, FloatArrayStamped, Vector6, Vector6ArrayStamped
@@ -100,18 +101,17 @@ TOPIC_VEL_REQ = 'pilot/velocity_req'
 TOPIC_STAY_REQ = 'pilot/stay_req'
 
 TOPIC_USER = 'user/forces'
-TOPIC_GAINS = 'controller/gains'
 SRV_SWITCH = 'pilot/switch'
+SRV_RELOAD = 'pilot/reload'
 SRV_THRUSTERS = 'thrusters/switch'
+TOPIC_GAINS = 'controller/gains'
 
 # adaptive fault control
 TOPIC_EFF = 'thrusters/efficiency'              # updates the efficiencies used in the thrust allocation solution
 TOPIC_SPD = 'pilot/speeds'                      # updates the controller speed limits (reduce saturation, topic)
 SRV_SPEED_LIM = 'pilot/speeds'                  # updates the controller speed limits (reduce saturation, srv call)
 SRV_FAULT_CTRL = 'pilot/fault_control'          # enable/disable the adaptive fault control
-
-#TOPIC_METRIC = 'thrusters/diagnostics'          # read the diagnostic metric (if any)
-#SRV_FAULT_SPEEDS = 'pilot/fault_speeds'         # enable/disable the adaptive fault speeds correction
+#TOPIC_METRIC = 'thrusters/diagnostics'         # read the diagnostic metric (if any)
 
 
 # utils
@@ -173,12 +173,12 @@ class VehiclePilot(object):
         self.controller = None
         self.ctrl_type = None
 
-        # load configuration (this updates limits and modes)
-        self.reload_config()
-
-        # limits (set after loading optional configuration)
+        # speeds limits
         self.lim_vel_user = self.max_speed
         self.lim_vel_ctrl = self.max_speed
+
+        # load configuration (this updates limits and modes)
+        self.reload_config()
 
         # outputs
         self.tau_ctrl = np.zeros(6, dtype=np.float64)         # u = [X, Y, Z, K, M, N]
@@ -208,6 +208,7 @@ class VehiclePilot(object):
 
         # services
         self.s_switch = rospy.Service(SRV_SWITCH, BooleanService, self.srv_switch)
+        self.s_reload = rospy.Service(SRV_RELOAD, Empty, self.srv_reload)
         self.s_lim = rospy.Service(SRV_SPEED_LIM, FloatService, self.srv_speed_limits)
 
         # adaptive thruster allocation matrix and thruster usage weights
@@ -218,8 +219,6 @@ class VehiclePilot(object):
         self.sub_eff = rospy.Subscriber(TOPIC_EFF, FloatArrayStamped, self.handle_efficiency)
         self.sub_spd = rospy.Subscriber(TOPIC_SPD, FloatArrayStamped, self.handle_speeds)
         self.s_fault_ctrl = rospy.Service(SRV_FAULT_CTRL, BooleanService, self.srv_fault_ctrl)
-        #self.sub_diag = rospy.Subscriber(TOPIC_METRIC, FloatArrayStamped, self.handle_diagnostics, tcp_nodelay=True, queue_size=3)
-        #self.s_fault_speeds = rospy.Service(SRV_FAULT_SPEEDS, BooleanService, self.srv_fault_speeds)
 
         # gains
         self.pub_gains = rospy.Publisher(TOPIC_GAINS, Vector6ArrayStamped, tcp_nodelay=True, queue_size=1)
@@ -301,6 +300,9 @@ class VehiclePilot(object):
         # load or reload controller configuration
         self.controller.update_config(self.ctrl_config, self.model_config)
 
+        # reset limits
+        self.lim_vel_user = self.max_speed
+        self.lim_vel_ctrl = self.max_speed
 
 
     # safety switch service
@@ -327,6 +329,17 @@ class VehiclePilot(object):
         else:
             self.ctrl_status = CTRL_DISABLED
             return BooleanServiceResponse(False)
+
+    def srv_reload(self, req):
+        """This function handle the reload service.
+
+        This will make the pilot reloading the shared configuration on-the-fly from the ROS parameter server.
+        Be careful with this approach with the using with the real vehicle cause any error will reflect on the vehicle
+        behaviour in terms of control, speeds, and so on ...
+        """
+        rospy.logwarn('%s: reloading configuration ...', self.name)
+        self.reload_config()
+        return []
 
 
     # speed limit service
@@ -364,19 +377,11 @@ class VehiclePilot(object):
         self.thruster_efficiency = np.clip(self.thruster_efficiency, 0.0, 1.0)
 
     def handle_speeds(self, data):
+        if not self.fault_control:
+            return
+
         self.lim_vel_ctrl = np.array(data.values[0:6])
-
-        # prevents bad input to reach the pilot
-        self._check_inputs()
-
-    # def srv_fault_speeds(self, data):
-    #     self.fault_speeds = bool(data.request)
-    #
-    #     if not self.fault_speeds:
-    #         self.lim_vel_ctrl = self.max_speeds
-    #
-    #     rospy.logwarn('%s: adaptive fault speeds status: %s', self.name, self.fault_speeds)
-    #     return BooleanServiceResponse(self.fault_control)
+        self._check_inputs()                                    # prevents bad input to reach the pilot
 
 
     def handle_user(self, data):
@@ -412,7 +417,6 @@ class VehiclePilot(object):
         # populate errors (used for info only)
         self.err_pos = self.pos - self.des_pos
         self.err_vel = self.vel - self.des_vel
-
         # TODO: prevent zero or missing nav data to mess with the pilot node!
 
 
@@ -437,7 +441,6 @@ class VehiclePilot(object):
         self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, -self.max_speed, self.max_speed)
 
 
-
     def handle_pos_req(self, data):
         try:
             # global referenced request
@@ -455,13 +458,9 @@ class VehiclePilot(object):
 
             self._check_inputs()
             self.ctrl_mode = vc.MODE_POSITION
-        except TypeError:
-            pass    # BUG: remove this clause after updating numpy in Nessie (bug in 1.6.1)
         except Exception:
             tb = traceback.format_exc()
             rospy.logerr('%s: bad position request\n%s', self.name, tb)
-
-
 
     def handle_body_req(self, data):
         try:
@@ -484,12 +483,9 @@ class VehiclePilot(object):
 
             self._check_inputs()
             self.ctrl_mode = vc.MODE_POSITION
-        except TypeError:
-            pass    # BUG: remove this clause after updating numpy in Nessie (bug in 1.6.1)
         except Exception:
             tb = traceback.format_exc()
             rospy.logerr('%s: bad body request\n%s', self.name, tb)
-
 
     def handle_vel_req(self, data):
         try:
@@ -606,18 +602,7 @@ class VehiclePilot(object):
         # update the inverse thruster allocation matrix based on current thruster efficiency
         self.local_inv_TAM = ta.tam_weighted_inverse(self.local_TAM, local_efficiency)
         self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
-
-        # # (diagnostics): update speeds limits using available thrust and efficiencies
-        # if self.fault_speeds:
-        #     self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
-        #
-        #     # avoid divisions by zero
-        #     for dof in np.argwhere(tc.MAX_U != 0):
-        #         ratio = self.available_forces[dof] / tc.MAX_U[dof]
-        #         self.lim_vel_ctrl[dof] = MAX_SPEED * np.power(ratio, 1.0 / 2.0)
-        #
-        #     self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, 0, MAX_SPEED)
-
+        self.available_forces = np.clip(self.available_forces, 0.0, tc.MAX_U)
 
         # convert force to thrust using the local copy of the TAM
         self.forces = np.dot( self.local_inv_TAM, self.tau_total )
