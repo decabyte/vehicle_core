@@ -62,14 +62,15 @@ from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatS
 
 
 # general config
-DEFAULT_RATE = 10                                       # pilot loop rate (Hz)
-STATUS_RATE = 2                                         # pilot report rate (Hz)
+DEFAULT_RATE = 10.0                                     # pilot loop rate (Hz)
+STATUS_RATE = 2.0                                       # pilot report rate (Hz)
+TIME_VERBOSE = 0.5                                      # console logging (sec)
 
 # default config
 #   this values can be overridden using external configuration files
 #   please see the reload_config() functions for more details
-MAX_PITCH = np.deg2rad(60.0)                            # default max pitch (rad)
-MAX_SPEED = np.array([1.0, 0.6, 0.6, 0.0, 2.0, 2.0])    # default max speed (m/s and rad/s)
+MAX_PITCH = 60.0                                        # default max pitch (deg) (internally used as rad)
+MAX_SPEED = np.array([2.0, 1.0, 1.0, 0.0, 3.0, 3.0])    # default max speed (m/s and rad/s)
 
 # controller status
 CTRL_DISABLED = 0
@@ -99,25 +100,18 @@ TOPIC_VEL_REQ = 'pilot/velocity_req'
 TOPIC_STAY_REQ = 'pilot/stay_req'
 
 TOPIC_USER = 'user/forces'
+TOPIC_GAINS = 'controller/gains'
 SRV_SWITCH = 'pilot/switch'
-SRV_SPEED_LIM = 'pilot/speed_limits'
 SRV_THRUSTERS = 'thrusters/switch'
 
+# adaptive fault control
+TOPIC_EFF = 'thrusters/efficiency'              # updates the efficiencies used in the thrust allocation solution
+TOPIC_SPD = 'pilot/speeds'                      # updates the controller speed limits (reduce saturation, topic)
+SRV_SPEED_LIM = 'pilot/speeds'                  # updates the controller speed limits (reduce saturation, srv call)
+SRV_FAULT_CTRL = 'pilot/fault_control'          # enable/disable the adaptive fault control
 
-# adaptive fault reaction
-TOPIC_METRIC = 'thrusters/diagnostics'      # read the diagnostic metric (if any)
-SRV_FAULT_CTRL = 'pilot/fault_control'      # enable/disable the adaptive fault thruster reallocation
-SRV_FAULT_SPEEDS = 'pilot/fault_speeds'     # enable/disable the adaptive fault speeds correction
-
-# autotuning
-TOPIC_GAINS = 'controller/gains'
-
-# diagnostic parameters
-W_THRESH = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1])                # thruster exclusion threshold (% of reference)
-THRESH_METRIC = np.array([20.0, 20.0, 20.0, 20.0, 20.0, 20.0])     # threshold for thrusters diagnostic metric
-W_ADJ_COEF = 0.01                                                  # thruster weight adaptation rate (decrease)
-E_ADJ_COEF = W_ADJ_COEF / 1000.0                                   # thruster weight adaptation rate (increase)
-# TODO: use configuration file for loading these parameters
+#TOPIC_METRIC = 'thrusters/diagnostics'          # read the diagnostic metric (if any)
+#SRV_FAULT_SPEEDS = 'pilot/fault_speeds'         # enable/disable the adaptive fault speeds correction
 
 
 # utils
@@ -160,10 +154,9 @@ class VehiclePilot(object):
         # initial status
         self.ctrl_status = CTRL_DISABLED
         self.ctrl_mode = vc.MODE_POSITION
-        self.lim_vel_user = MAX_SPEED
-        self.lim_vel_ctrl = MAX_SPEED
         self.disable_axis = np.zeros(6)
-
+        self.max_pitch = MAX_PITCH
+        self.max_speed = MAX_SPEED
 
         self.local_TAM = np.copy(tc.TAM)                        # thrust allocation matrix
         self.local_inv_TAM = np.copy(tc.inv_TAM)                # inverse of thrust allocation matrix
@@ -180,8 +173,12 @@ class VehiclePilot(object):
         self.controller = None
         self.ctrl_type = None
 
-        # load configuration
+        # load configuration (this updates limits and modes)
         self.reload_config()
+
+        # limits (set after loading optional configuration)
+        self.lim_vel_user = self.max_speed
+        self.lim_vel_ctrl = self.max_speed
 
         # outputs
         self.tau_ctrl = np.zeros(6, dtype=np.float64)         # u = [X, Y, Z, K, M, N]
@@ -217,17 +214,19 @@ class VehiclePilot(object):
         self.diagnostic_metric = np.zeros(6)
         self.available_forces = np.copy(tc.MAX_U)
 
-        # diagnostics
-        self.sub_diag = rospy.Subscriber(TOPIC_METRIC, FloatArrayStamped, self.handle_diagnostics, tcp_nodelay=True, queue_size=3)
+        # adaptive fault control
+        self.sub_eff = rospy.Subscriber(TOPIC_EFF, FloatArrayStamped, self.handle_efficiency)
+        self.sub_spd = rospy.Subscriber(TOPIC_SPD, FloatArrayStamped, self.handle_speeds)
         self.s_fault_ctrl = rospy.Service(SRV_FAULT_CTRL, BooleanService, self.srv_fault_ctrl)
-        self.s_fault_speeds = rospy.Service(SRV_FAULT_SPEEDS, BooleanService, self.srv_fault_speeds)
+        #self.sub_diag = rospy.Subscriber(TOPIC_METRIC, FloatArrayStamped, self.handle_diagnostics, tcp_nodelay=True, queue_size=3)
+        #self.s_fault_speeds = rospy.Service(SRV_FAULT_SPEEDS, BooleanService, self.srv_fault_speeds)
 
         # gains
         self.pub_gains = rospy.Publisher(TOPIC_GAINS, Vector6ArrayStamped, tcp_nodelay=True, queue_size=1)
 
         # optional info
         if self.verbose:
-            t_pri = rospy.Timer(rospy.Duration(0.5), self.print_info)
+            t_pri = rospy.Timer(rospy.Duration(TIME_VERBOSE), self.print_info)
 
 
 
@@ -249,10 +248,18 @@ class VehiclePilot(object):
         # pilot params
         self.pitch_enable = bool(pilot_config.get('pitch_enable', False))
         self.prioritize_axis = bool(pilot_config.get('prioritize_axis', False))
-
         self.adaptive_yaw = bool(pilot_config.get('adaptive_yaw', False))
+
+        # pitch limit
+        self.max_pitch = float(pilot_config.get('max_pitch', MAX_PITCH))
+        self.max_pitch = np.deg2rad(self.max_pitch)
+
+        # speed limits
+        self.max_speed = np.array(pilot_config.get('max_speed', MAX_SPEED.tolist()), dtype=np.float64)
+        self.max_speed = np.clip(self.max_speed, -MAX_SPEED, MAX_SPEED)
+
+        # fault tolerant control
         self.fault_control = bool(pilot_config.get('fault_control', False))
-        self.fault_speeds = bool(pilot_config.get('fault_speeds', False))
 
         # high speed and low speed manoeuvring range
         self.thres_fast_speed = np.clip( float(pilot_config.get('threshold_fast', 1.0)), 0.50, 2.00 )
@@ -281,9 +288,9 @@ class VehiclePilot(object):
 
             # create new controller
             if self.ctrl_type == 'cascaded':
-                self.controller = vc.CascadedController(self.dt, self.ctrl_config, self.model_config, lim_vel=MAX_SPEED)
+                self.controller = vc.CascadedController(self.dt, self.ctrl_config, self.model_config, lim_vel=self.max_speed)
             elif self.ctrl_type == 'autotuning':
-                self.controller = vc.AutoTuningController(self.dt, self.ctrl_config, self.model_config, lim_vel=MAX_SPEED)
+                self.controller = vc.AutoTuningController(self.dt, self.ctrl_config, self.model_config, lim_vel=self.max_speed)
             else:
                 rospy.logfatal('controller type [%s] not supported', self.ctrl_type)
                 raise ValueError('controller type [%s] not supported', self.ctrl_type)
@@ -326,60 +333,50 @@ class VehiclePilot(object):
     def srv_speed_limits(self, data):
         if len(data.request) == 6:
             self.lim_vel_ctrl = np.array(data.request[0:6])
-            self.check_inputs()
+            self._check_inputs()
         else:
             rospy.logwarn('%s: resetting speed limits', self.name)
-            self.lim_vel_ctrl = MAX_SPEED
+            self.lim_vel_ctrl = self.max_speed
 
         rospy.logdebug('%s: set controller speed limits: %s', self.name, self.lim_vel_ctrl)
         return FloatServiceResponse(result=True, response=self.lim_vel_ctrl.tolist())
 
 
-    # fault services
+    # adative fault control
     def srv_fault_ctrl(self, data):
         self.fault_control = bool(data.request)
 
         # reset adaptive fault reaction on disable request
         if not self.fault_control:
             self.thruster_efficiency = np.ones(6)
+            self.lim_vel_ctrl = self.max_speed
             rospy.logwarn('%s: resetting adaptive fault control', self.name)
 
         rospy.logwarn('%s: adaptive fault control status: %s', self.name, self.fault_control)
         return BooleanServiceResponse(self.fault_control)
 
-    def srv_fault_speeds(self, data):
-        self.fault_speeds = bool(data.request)
+    def handle_efficiency(self, data):
+        if not self.fault_control:
+            return
 
-        if not self.fault_speeds:
-            self.lim_vel_ctrl = MAX_SPEED
+        # update the internal efficiencies (only if enabled)
+        self.thruster_efficiency = np.array(data.values[0:6])
+        self.thruster_efficiency = np.clip(self.thruster_efficiency, 0.0, 1.0)
 
-        rospy.logwarn('%s: adaptive fault speeds status: %s', self.name, self.fault_speeds)
-        return BooleanServiceResponse(self.fault_control)
+    def handle_speeds(self, data):
+        self.lim_vel_ctrl = np.array(data.values[0:6])
 
+        # prevents bad input to reach the pilot
+        self._check_inputs()
 
-
-    def handle_diagnostics(self, data):
-        if len(data.values) == 6:
-            self.diagnostic_metric = np.array(data.values[0:6])
-        else:
-            self.diagnostic_metric = np.zeros(6)
-
-        # trigger only if adaptive correction is enabled
-        # and a fault condition is detected (threshold crossing)
-        if self.fault_control:
-            indexes = np.where(self.diagnostic_metric > THRESH_METRIC)[0]
-
-            # update the efficiency and costs
-            self.thruster_efficiency[indexes] -= W_ADJ_COEF                    # reduce thruster efficiency
-            self.thruster_efficiency += E_ADJ_COEF                             # increase thruster efficiency
-
-            self.thruster_efficiency = np.clip(self.thruster_efficiency, 0.0, 1.0)      # prevent negative values
-
-            # check if is better to exclude inefficient thrusters
-            if np.any(self.thruster_efficiency <= W_THRESH):
-                idx_disable = np.where(self.thruster_efficiency <= W_THRESH)[0]
-                self.thruster_efficiency[idx_disable] = 0
-
+    # def srv_fault_speeds(self, data):
+    #     self.fault_speeds = bool(data.request)
+    #
+    #     if not self.fault_speeds:
+    #         self.lim_vel_ctrl = self.max_speeds
+    #
+    #     rospy.logwarn('%s: adaptive fault speeds status: %s', self.name, self.fault_speeds)
+    #     return BooleanServiceResponse(self.fault_control)
 
 
     def handle_user(self, data):
@@ -392,8 +389,6 @@ class VehiclePilot(object):
         # limit user input
         self.tau_user = np.clip(user_input, -tc.MAX_U, tc.MAX_U)
 
-
-    # TODO: prevent zero or missing nav data to mess with the pilot node!
     def handle_nav(self, data):
         # parse navigation data
         self.pos = np.array([
@@ -418,8 +413,10 @@ class VehiclePilot(object):
         self.err_pos = self.pos - self.des_pos
         self.err_vel = self.vel - self.des_vel
 
+        # TODO: prevent zero or missing nav data to mess with the pilot node!
 
-    def check_inputs(self):
+
+    def _check_inputs(self):
         # position input checks:
         #   prevent negative depths (out of the water)
         #   remove roll
@@ -431,13 +428,13 @@ class VehiclePilot(object):
         # velocity input checks:
         #   enforce speed limits (hurra!)
         #   remove roll
-        self.des_vel = np.clip(self.des_vel, -MAX_SPEED, MAX_SPEED)     # m/s and rad/s
+        self.des_vel = np.clip(self.des_vel, -self.max_speed, self.max_speed)     # m/s and rad/s
         self.des_vel[3] = 0
 
         # limits input checks:
         #   prevent this go above the maximum rated speed
-        self.lim_vel_user = np.clip(self.lim_vel_user, -MAX_SPEED, MAX_SPEED)
-        self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, -MAX_SPEED, MAX_SPEED)
+        self.lim_vel_user = np.clip(self.lim_vel_user, -self.max_speed, self.max_speed)
+        self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, -self.max_speed, self.max_speed)
 
 
 
@@ -446,7 +443,7 @@ class VehiclePilot(object):
             # global referenced request
             self.des_pos = np.array(data.position[0:6])
             self.des_vel = np.zeros(6)
-            self.lim_vel_user = MAX_SPEED
+            self.lim_vel_user = self.max_speed
 
             # ignore disabled axis
             self.disable_axis = np.array(data.disable_axis)
@@ -456,7 +453,7 @@ class VehiclePilot(object):
                 idx_vel = np.array(data.limit_velocity) > 0
                 self.lim_vel_user[idx_vel] = np.array(data.velocity)[idx_vel]
 
-            self.check_inputs()
+            self._check_inputs()
             self.ctrl_mode = vc.MODE_POSITION
         except TypeError:
             pass    # BUG: remove this clause after updating numpy in Nessie (bug in 1.6.1)
@@ -475,7 +472,7 @@ class VehiclePilot(object):
 
             self.des_pos = self.pos + body_request
             self.des_vel = np.zeros(6)
-            self.lim_vel_user = MAX_SPEED
+            self.lim_vel_user = self.max_speed
 
             # ignore disabled axis
             self.disable_axis = np.array(data.disable_axis)
@@ -485,7 +482,7 @@ class VehiclePilot(object):
                 idx_vel = np.array(data.limit_velocity) > 0
                 self.lim_vel_user[idx_vel] = np.array(data.velocity)[idx_vel]
 
-            self.check_inputs()
+            self._check_inputs()
             self.ctrl_mode = vc.MODE_POSITION
         except TypeError:
             pass    # BUG: remove this clause after updating numpy in Nessie (bug in 1.6.1)
@@ -498,12 +495,12 @@ class VehiclePilot(object):
         try:
             self.des_pos = np.zeros(6)
             self.des_vel = np.array(data.velocity[0:6])
-            self.lim_vel_user = MAX_SPEED
+            self.lim_vel_user = self.max_speed
 
             # ignore disabled axis
             self.disable_axis = np.array(data.disable_axis)
 
-            self.check_inputs()
+            self._check_inputs()
             self.ctrl_mode = vc.MODE_VELOCITY
         except Exception:
             tb = traceback.format_exc()
@@ -530,15 +527,12 @@ class VehiclePilot(object):
 
         self.pub_status.publish(ps)
 
-
         # added for the autotuning controller test
         if self.ctrl_type == 'autotuning':
             self.send_gains()
 
-
     # added for the autotuning controller test
     def send_gains(self, event=None):
-
         if self.ctrl_type != 'autotuning':
             return
 
@@ -611,19 +605,18 @@ class VehiclePilot(object):
 
         # update the inverse thruster allocation matrix based on current thruster efficiency
         self.local_inv_TAM = ta.tam_weighted_inverse(self.local_TAM, local_efficiency)
+        self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
 
-
-        # TODO: move this together with the thruster efficiency estimation in a diagnostic callback (diagnostics)
-        # (diagnostics): update speeds limits using available thrust and efficiencies
-        if self.fault_speeds:
-            self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
-
-            # avoid divisions by zero
-            for dof in np.argwhere(tc.MAX_U != 0):
-                ratio = self.available_forces[dof] / tc.MAX_U[dof]
-                self.lim_vel_ctrl[dof] = MAX_SPEED * np.power(ratio, 1.0 / 2.0)
-
-            self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, 0, MAX_SPEED)
+        # # (diagnostics): update speeds limits using available thrust and efficiencies
+        # if self.fault_speeds:
+        #     self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
+        #
+        #     # avoid divisions by zero
+        #     for dof in np.argwhere(tc.MAX_U != 0):
+        #         ratio = self.available_forces[dof] / tc.MAX_U[dof]
+        #         self.lim_vel_ctrl[dof] = MAX_SPEED * np.power(ratio, 1.0 / 2.0)
+        #
+        #     self.lim_vel_ctrl = np.clip(self.lim_vel_ctrl, 0, MAX_SPEED)
 
 
         # convert force to thrust using the local copy of the TAM
@@ -667,7 +660,7 @@ class VehiclePilot(object):
 
     def run(self):
         # init pilot
-        # ...
+        rospy.loginfo('%s: pilot initialized ...', self.name)
 
         # pilot loop
         while not rospy.is_shutdown():

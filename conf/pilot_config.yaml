@@ -1,0 +1,22 @@
+# pilot node configuration file -- for use with Nessie AUV only
+#
+# this file contains the major parameters of the vehicle's pilot node according to experience of real sea operations
+# as well as indoor wavetank testing.
+#
+# Make sure you understand the basic components before changing these values, you have been warned!
+pilot:
+    # general options
+    pitch_enable: true
+    prioritize_axis: true
+
+    # limits
+    max_pitch: 60.0                                   # deg (internally converted to rads)
+    max_speed: [1.2, 0.6, 0.6, 0.0, 2.0, 2.0]         # m/s and rad/s
+
+    # thruster mapping
+    adaptive_yaw: true
+    threshold_fast: 0.2                               # m/s
+    threshold_slow: 0.1                               # m/s
+
+    # fault tolerant control
+    fault_control: false                              # disabled by default as other nodes may be required

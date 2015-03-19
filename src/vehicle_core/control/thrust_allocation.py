@@ -161,9 +161,11 @@ def evaluate_max_force(inv_TAM):
     """
     # find the thruster which takes most of the load
     max_contribution = np.max(np.abs(inv_TAM), axis=0)
+    idx_nonzero = np.argwhere(max_contribution != 0)
 
     # for what value of force requested will it saturate?
-    max_u = tc.MAX_FORCE / max_contribution
+    max_u = np.zeros_like(tc.MAX_U)
+    max_u[idx_nonzero] = tc.MAX_FORCE / max_contribution[idx_nonzero]
 
     # avoid NaN and Inf
     max_u[np.where(np.isinf(max_u))] = 0

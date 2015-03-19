@@ -1,17 +1,4 @@
 pilot:
-    # general options
-    pitch_enable: true
-    prioritize_axis: true
-
-    # thruster mapping
-    adaptive_yaw: true
-    threshold_fast: 0.2
-    threshold_slow: 0.1
-
-    # fault tolerant control
-    fault_control: false
-    fault_speeds: false
-
     # cascaded pid parameters
     controller:
         # general options
