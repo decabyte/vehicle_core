@@ -435,14 +435,15 @@ def interpolate_arc(A, B, radius, spacing, right=True, **kwargs):
     return trajectory
 
 
-def interpolate_sector(position, radius=5, sector=90, spacing=1, **kwargs):
+def interpolate_sector(position, radius=5.0, sector=90.0, spacing=1.0, facing_center=True, **kwargs):
     """Generate a trajectory over a circular sector, defined by the starting position of the vehicle, the radius and an
     angle which defines the length of the sector.
 
     :param position:
-    :param radius:
-    :param sector:
-    :param spacing:
+    :param radius: radius of the circular shape (m)
+    :param sector: circular sector (deg)
+    :param spacing: distance between consecutive waypoints (m)
+    :param facing_center: boolean flag, if enabled (default) the yaw is set to face the centre of the circular trajectory
     :return: (n, 6) numpy array with trajectory points
     """
     # find center or the arc
@@ -463,22 +464,24 @@ def interpolate_sector(position, radius=5, sector=90, spacing=1, **kwargs):
     points[:, 0] = y + center[0]
     points[:, 1] = x + center[1]
     points[:, 2] = position[2]
-    points[:, 5] = wrap_angle((-theta + np.pi/2) - np.pi)
+    points[:, 5] = wrap_angle( calculate_orientation(points, center) ) #wrap_angle((-theta + np.pi/2) - np.pi)
+
+    if not facing_center:
+        points[:, 5] += (np.pi / 2)
 
     return points
 
 
-def interpolate_circle(centre, radius=5.0, spacing=1.0, facing_centre=True, **kwargs):
+def interpolate_circle(center, radius=5.0, spacing=1.0, facing_center=True, **kwargs):
     """Generate a circular trajectory give its central point, its radius and an optionally angle which defines the
     coverage of the circle (defaults to a full circular trajectory).
 
     The standard behaviour is to start from the southern point and complete a full circle around the central point.
 
-    :param centre: central waypoint, numpy array of shape (6)
+    :param center: central waypoint, numpy array of shape (6)
     :param radius: radius of the circular shape (m)
     :param spacing: distance between consecutive waypoints (m)
-    :param facing_centre: boolean flag, if enabled (default) the yaw is set to face the centre of the circular trajectory
-    :param kwargs:
+    :param facing_center: boolean flag, if enabled (default) the yaw is set to face the centre of the circular trajectory
     :return: (n, 6) numpy array with trajectory points
     """
     angle = 2 * np.pi
@@ -490,18 +493,18 @@ def interpolate_circle(centre, radius=5.0, spacing=1.0, facing_centre=True, **kw
     x, y = pol2cart(radius, theta)
 
     points = np.zeros((steps, 6))
-    points[:, 0] = centre[0] + y
-    points[:, 1] = centre[1] + x
-    points[:, 2] = centre[2]
-    points[:, 5] = wrap_angle( calculate_orientation(points, centre) )
+    points[:, 0] = center[0] + y
+    points[:, 1] = center[1] + x
+    points[:, 2] = center[2]
+    points[:, 5] = wrap_angle( calculate_orientation(points, center) )
 
-    if not facing_centre:
+    if not facing_center:
         points[:, 5] += (np.pi / 2)
 
     return points
 
 
-def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, facing_centre=True, **kwargs):
+def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, facing_center=True, **kwargs):
     """Generate a helix trajectory give its central point, its radius, its length, and an optionally the number of loops.
 
     The standard behaviour is to start from the centre's depth and dive for the height provided by the user.
@@ -511,7 +514,7 @@ def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, fa
     :param height: height of the helix shape (m), as default it increases the depth starting from the centre's depth
     :param loops: number of complete loops around the centre (number)
     :param spacing: distance between consecutive waypoints (m)
-    :param facing_centre: boolean flag, if enabled (default) the yaw is set to face the centre of the helix trajectory
+    :param facing_center: boolean flag, if enabled (default) the yaw is set to face the centre of the helix trajectory
     :param kwargs:
     :return:(n, 6) numpy array with trajectory points
     """
@@ -529,7 +532,7 @@ def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, fa
     points[:, 2] = np.linspace(centre[2], centre[2] + height, num=steps)
     points[:, 5] = wrap_angle( calculate_orientation(points, centre) )
 
-    if not facing_centre:
+    if not facing_center:
         points[:, 5] += (np.pi / 2)
 
     return points
