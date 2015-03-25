@@ -1,0 +1,16 @@
+<launch>
+	<!-- optional arguments -->
+	<arg name="port" default="/vdev/tty_gps" />
+
+	<node ns="gps" name="nmea_gps" pkg="nmea_navsat_driver" type="nmea_serial_driver" output="screen">
+		<param name="port" value="$(arg port)" />
+		<param name="baud" value="38400" />
+		<param name="frame_id" value="gps" />
+		<param name="time_ref_source" value="gps" />
+		<param name="useRMC" value="False" />
+		
+		<!-- remap /gps/fix to /gps/nav_sat_fix to work with old auv_nav -->
+		<remap from="fix" to="nav_sat_fix" />
+	</node>
+
+</launch>

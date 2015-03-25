@@ -1,0 +1,10 @@
+<launch>
+  <!-- optional arguments -->
+  <arg name="time_ref" default="/gps/time_reference" />
+
+  <node name="$(anon ntpd_shm)" pkg="ntpd_driver" type="shm_driver" output="screen">
+  	<param name="shm_unit" value="2" />
+	<param name="time_ref" value="$(arg time_ref)" />
+  </node>
+
+</launch>
