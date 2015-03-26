@@ -60,6 +60,11 @@ np.set_printoptions(precision=3, suppress=True)
 
 import dynamic_model as dm
 
+# constants
+DEFAULT_RHO = 1025.0    # density of water (salt water is default)
+MAX_VEL = 20.0          # stable numerical limit for the vehicle velocity vector (m/s or rad/s)
+MAX_ATT = np.pi         # stable numerical limit for the vehicle attitude vector (rad)
+
 
 class VehicleModel(object):
     """VehicleModel class provides an easy tool to deal with dynamical forces acting on the vehicle.
@@ -81,36 +86,34 @@ class VehicleModel(object):
         if self.shape != 'cylindrical':
             raise NotImplemented('Could not create VehicleModel for non-cylindrical shapes.')
 
-        self.mass = config.get('mass')          # total mass of the vehicle [kg]
-        self.W = config.get('weight')           # weight [N]    (it should be mass * 9.81)
-        self.B = config.get('buoyancy')         # buoyancy [N]  (it should be close to W)
+        self.mass = config.get('mass')                              # total mass of the vehicle [kg]
+        self.W = config.get('weight')                               # weight [N]    (it should be mass * 9.81)
+        self.B = config.get('buoyancy')                             # buoyancy [N]  (it should be close to W)
+        self.radius = config.get('radius')                          # radius [m]
+        self.length = config.get('length')                          # length [m]
+        self.volume = config.get('volume')                          # volume of the vehicle [m^3]
+        self.water_rho = config.get('water_rho', DEFAULT_RHO)       # density (salt water) [kg/m^3]
 
-        self.cog = np.array(config.get('cog'))  # center of gravity [m] (xg, yg, zg)
-        self.cob = np.array(config.get('cob'))  # center of buoyancy [m]  (xb, yb, zb)
-
-        self.radius = config.get('radius')                  # radius [m]
-        self.length = config.get('length')                  # length [m]
-        self.volume = config.get('volume')                  # volume of the vehicle [m^3]
-        self.water_rho = config.get('water_rho', 1025.0)    # density (salt water) [kg/m^3]
+        self.cog = np.array(config.get('cog'), dtype=np.float64)    # center of gravity [m] (xg, yg, zg)
+        self.cob = np.array(config.get('cob'), dtype=np.float64)    # center of buoyancy [m]  (xb, yb, zb)
 
         # principal quadratic drag coefficients (approximation for underwater vehicles)
         #   [x_uu, y_vv, z_ww, k_pp, m_qq, n_rr]
-        self.quadratic_drag = np.array(config.get('quadratic_drag'))
+        self.quadratic_drag = np.array(config.get('quadratic_drag'), dtype=np.float64)
 
         # inertia tensor wrt origin of vehicle [mass * length^2]
         self.inertia = np.array([
             self.mass * (self.radius ** 2) * (1.0 / 2.0),
             self.mass * (3 * (self.radius ** 2) + (self.length ** 2)) * (1.0 / 12.0),
             self.mass * (3 * (self.radius ** 2) + (self.length ** 2)) * (1.0 / 12.0),
-        ])
+        ], dtype=np.float64)
 
         # forces
-        self.F_net = np.zeros(6)        # total net force acting on the vehicle
-        #self.F_model = np.zeros(6)      # total hydrodynamic forces acting on the vehicle
-        # self.F_C = np.zeros(6)         # coriolis forces
-        # self.F_D = np.zeros(6)         # damping forces
-        # self.F_G = np.zeros(6)         # restoring forces
-
+        self.F_net = np.zeros(6, dtype=np.float64)         # total net force acting on the vehicle
+        # self.F_model = np.zeros(6, dtype=np.float64)     # total hydrodynamic forces acting on the vehicle
+        # self.F_C = np.zeros(6, dtype=np.float64)         # coriolis forces
+        # self.F_D = np.zeros(6, dtype=np.float64)         # damping forces
+        # self.F_G = np.zeros(6, dtype=np.float64)         # restoring forces
 
         # calculate added terms based on cylindrical shape
         self.added_terms = np.array([
@@ -120,7 +123,7 @@ class VehicleModel(object):
             -np.pi * self.water_rho * (self.radius ** 4) * (1.0 / 4.0),                                 # kp_dot
             -np.pi * self.water_rho * (self.radius ** 2) * (self.length ** 3) * (1.0 / 12.0),           # mq_dot
             -np.pi * self.water_rho * (self.radius ** 2) * (self.length ** 3) * (1.0 / 12.0)            # nr_dot
-        ])
+        ], dtype=np.float64)
 
         # calculate rigid body inertia
         xg, yg, zg = self.cog
@@ -133,7 +136,7 @@ class VehicleModel(object):
             [0.0, -self.mass * zg, self.mass * yg, ix, 0.0, 0.0],
             [self.mass * zg, 0.0, -self.mass * xg, 0.0, iy, 0.0],
             [-self.mass * yg, self.mass * xg, 0.0, 0.0, 0.0, iz]
-        ])
+        ], dtype=np.float64)
 
         # added mass (approximation for underwater vehicles)
         #
@@ -148,7 +151,11 @@ class VehicleModel(object):
 
         # dynamic equation mass matrix and inverse matrix
         self.M = self.MRB - self.MA
-        self.inv_M = np.linalg.inv(self.M)
+        self.inv_M = np.linalg.pinv(self.M)
+
+        # vehicle limits
+        self.lim_att = MAX_ATT * np.ones(3, dtype=np.float64)   # k, m, n
+        self.lim_vel = MAX_VEL * np.ones(6, dtype=np.float64)   # u, v, w, p, q, r
 
 
     def update_forward_model(self, pos, vel):
@@ -162,6 +169,10 @@ class VehicleModel(object):
         :param vel: current velocity of the vehicle [u,v,w,p,q,r]   (in m/s and rad/s)
         :return: numpy.ndarray of shape (6,) with forces acting in body-frame [X,Y,Z,K,M,N]
         """
+
+        # numerical limits
+        pos[3:6] = np.clip(pos[3:6], -self.lim_att, self.lim_att)
+        vel = np.clip(vel, -self.lim_vel, self.lim_vel)
 
         return dm.calc_model_forward(
             pos, vel, self.cog, self.cob, self.mass, self.inertia, self.W, self.B,
@@ -182,6 +193,10 @@ class VehicleModel(object):
         :return: numpy.ndarray of shape (6,) with forces acting in body-frame [X,Y,Z,K,M,N]
         """
 
+        # numerical limits
+        pos[3:6] = np.clip(pos[3:6], -self.lim_att, self.lim_att)
+        vel = np.clip(vel, -self.lim_vel, self.lim_vel)
+
         return np.dot(self.M, acc) + dm.calc_other_forces(
             pos, vel, self.cog, self.cob, self.mass, self.inertia, self.W, self.B,
             self.added_terms, self.quadratic_drag
@@ -201,8 +216,11 @@ class VehicleModel(object):
         :return: computed acceleration of the vehicle [udot,vdot,wdot,pdot,qdot,rdot]   (in m/s^2 and rad/s^2)
         """
 
+        # calculate model
+        tau_model = self.update_forward_model(pos, vel)
+
         # dynamic equation (compute total force)
-        self.F_net = tau - self.update_forward_model(pos, vel)
+        self.F_net = tau - tau_model
 
         # calculate acceleration from forces
         return np.dot(self.inv_M, self.F_net)

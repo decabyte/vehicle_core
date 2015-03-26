@@ -95,6 +95,7 @@ FRAME_CHILD = 'base_link'
 
 # simulator constants
 MAX_ABOVE_SEA_LEVEL = -0.15
+MAX_PITCH = 1.570
 
 
 # utils
@@ -124,7 +125,7 @@ class NavigationSimulator(object):
 
         # state
         self.t = 0.0
-        self.tau = np.zeros(6)
+        self.tau = np.zeros(6, dtype=np.float64)
         self.depth_bottom = kwargs.get('depth_bottom', 50)
 
         # dynamic model
@@ -138,21 +139,21 @@ class NavigationSimulator(object):
         #       a = d vel/dt
         #       pos = [x y z phi theta psi]
         #
-        self.acc = np.zeros(6)      # output: linear and angular acceleration
-        self.vel = np.zeros(6)      # velocity:	linear and angular velocity (body-frame)
-        self.pos = np.zeros(6)      # position:	linear and angular position
-        self.pos_prev = np.zeros(6) # position: linear and angular position
+        self.acc = np.zeros(6, dtype=np.float64)      # output: linear and angular acceleration
+        self.vel = np.zeros(6, dtype=np.float64)      # velocity:	linear and angular velocity (body-frame)
+        self.pos = np.zeros(6, dtype=np.float64)      # position:	linear and angular position
+        self.pos_prev = np.zeros(6, dtype=np.float64) # position: linear and angular position
 
         # nav offset
-        self.offset_pos = np.zeros(6)
+        self.offset_pos = np.zeros(6, dtype=np.float64)
 
         # initial conditions
         self.pos = initial_position
         self.rk4_state = np.concatenate((self.pos, self.vel))   # NOTE: review this with body frame global conversion
 
         # jacobians
-        self.J = np.zeros((6, 6))       # jacobian matrix (translate velocity from body referenced to Earth referenced)
-        self.J_inv = np.zeros((6, 6))   # inverse jacobian matrix
+        self.J = np.zeros((6, 6), dtype=np.float64)       # jacobian matrix (translate velocity from body referenced to Earth referenced)
+        self.J_inv = np.zeros((6, 6), dtype=np.float64)   # inverse jacobian matrix
 
 
         # topics
@@ -168,11 +169,11 @@ class NavigationSimulator(object):
         self.frame_child = kwargs.get('frame_child', FRAME_CHILD)
 
         # odometry rotation matrix
-        rot_mat_z = np.zeros((6,6))
+        rot_mat_z = np.zeros((6,6), dtype=np.float64)
         rot_mat_z[0:3, 0:3] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 0, 1]))[:3, :3]
         rot_mat_z[3:6, 3:6] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 0, 1]))[:3, :3]
 
-        rot_mat_y = np.zeros((6,6))
+        rot_mat_y = np.zeros((6,6), dtype=np.float64)
         rot_mat_y[0:3, 0:3] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 1, 0]))[:3, :3]
         rot_mat_y[3:6, 3:6] = tft.rotation_matrix(np.deg2rad(180), np.array([0, 1, 0]))[:3, :3]
 
@@ -200,9 +201,9 @@ class NavigationSimulator(object):
     def handle_reset(self, req):
         """This is setting resetting the status of the navigation simulator."""
 
-        self.pos = np.zeros(6)
-        self.vel = np.zeros(6)
-        self.pos_prev = np.zeros(6)
+        self.pos = np.zeros(6, dtype=np.float64)
+        self.vel = np.zeros(6, dtype=np.float64)
+        self.pos_prev = np.zeros(6, dtype=np.float64)
 
         rospy.logwarn('%s: resetting the nav simulator ...', self.name)
         return EmptyResponse()
@@ -217,7 +218,7 @@ class NavigationSimulator(object):
     def handle_forces(self, data):
         # load forces from message
         #   forces are in body frame coordinates
-        self.tau = np.array(data.values[0:6])
+        self.tau = np.array(data.values[0:6], dtype=np.float64)
 
 
     def publish_navigation(self, event=None):
@@ -345,7 +346,7 @@ class NavigationSimulator(object):
         self.vel = self.vel + (self.acc * self.dt)
 
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.inv(self.J)
+        self.J_inv = np.linalg.pinv(self.J)
 
         vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
 
@@ -363,7 +364,7 @@ class NavigationSimulator(object):
 
         # convert velocity to earth-fixed reference
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.inv(self.J)
+        self.J_inv = np.linalg.pinv(self.J)
 
         vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
         acc_efec = np.dot(self.J, acc_prev.reshape((6, 1))).flatten()
@@ -385,11 +386,10 @@ class NavigationSimulator(object):
 
         # invoke main computation
         acc = self.model.update_acceleration(self.tau, pos, vel)
-        #vel, acc = self.compute_acceleration(pos, vel)
 
         # convert velocity to global coordinates as we want position in global coordinates
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.inv(self.J)
+        self.J_inv = np.linalg.pinv(self.J)
 
         vel_efec = np.dot(self.J, vel.reshape((6, 1))).flatten()
 
@@ -415,7 +415,7 @@ class NavigationSimulator(object):
         # improved integration accuracy
         self.int_velocity_verlet()
 
-        # # RK4 integration
+        # RK4 integration
         # self.t += self.dt
         # self.t, self.rk4_state = self.rk4(self.t, self.dt, self.rk4_state, self.rk4_derivative)
         # self.vel = self.rk4_state[6:12]     # velocity and position are already in body frame
@@ -423,7 +423,7 @@ class NavigationSimulator(object):
 
         # wrap angles and limit pitch (-90 / 90)
         self.pos[3:6] = wrap_pi(self.pos[3:6])
-        self.pos[4] = np.clip(self.pos[4], -1.570, 1.570)
+        self.pos[4] = np.clip(self.pos[4], -MAX_PITCH, MAX_PITCH)
 
         # prevent the vehicle to fly to high! :)
         if self.pos[2] <= MAX_ABOVE_SEA_LEVEL:
@@ -434,7 +434,7 @@ class NavigationSimulator(object):
 
     def run(self):
         # init simulation
-        self.tau = np.zeros(6)
+        self.tau = np.zeros(6, dtype=np.float64)
 
         # run simulation
         while not rospy.is_shutdown():
@@ -483,14 +483,16 @@ def main():
 
     # TODO: remove parameters from launch files and move them to navigation configuration file (/nav/sim namespace)
     # load parameters
-    pose_x = int(rospy.get_param('~pose_x', 0))
-    pose_y = int(rospy.get_param('~pose_y', 0))
-    pose_z = int(rospy.get_param('~pose_z', 0))
-    pose_k = int(rospy.get_param('~pose_k', 0))
-    pose_m = int(rospy.get_param('~pose_m', 0))
-    pose_n = int(rospy.get_param('~pose_n', 0))
+    pose_x = int(rospy.get_param('~pose_x', 0.0))
+    pose_y = int(rospy.get_param('~pose_y', 0.0))
+    pose_z = int(rospy.get_param('~pose_z', 0.0))
+    pose_k = int(rospy.get_param('~pose_k', 0.0))
+    pose_m = int(rospy.get_param('~pose_m', 0.0))
+    pose_n = int(rospy.get_param('~pose_n', 0.0))
 
-    pose = np.array([pose_x, pose_y, pose_z, pose_k, pose_m, pose_n])
+    pose = np.array([
+        pose_x, pose_y, pose_z, pose_k, pose_m, pose_n
+    ], dtype=np.float64)
 
     sim_rate = int(rospy.get_param('~sim_rate', RATE_SIM))
     sim_rate = np.clip(sim_rate, 1, 100).astype(int)
