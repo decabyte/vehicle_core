@@ -1,6 +1,6 @@
 <launch>
 	
-	<!-- start nodes from old Nessie code -->
+	<!-- LEGACY CODE -->
 	<group ns="/">
 		<!-- load platform parameters (needed for old Nessie code) -->
 		<include file="$(find nessie_bringup)/launch/load_nessie5_params.launch" />
@@ -8,21 +8,19 @@
 		<!-- start all the fundamental nodes (from old Nessie code) -->
 		<node name="Pressure" pkg="keller_pressure" type="pressure" respawn="false"/>
 		<node name="Compass" pkg="pni_compass" type="compass" respawn="false"/>
-		<node name="GPS" pkg="gps" type="gps" respawn="false"/>
 		<node name="DVL" pkg="teledyne_dvl" type="dvl" respawn="false"/>
+        <!--<node name="GPS" pkg="gps" type="gps" respawn="false"/>-->
 	</group>
 
-    <!-- start nodes from new Nessie code -->
-    <!--    they don't require to be run in a namespace unless multi vehicle operation are need -->
+    <!-- NEW NESSIE CODE -->
+    <!-- they don't require to run in a namespace unless multi vehicle operation are need -->
 
     <!-- gyroscope is explicitly added or it can be used by including its launch file -->
-    <node name="kvh_gyro" pkg="kvh_gyroscope" type="node_kvh.py" respawn="false">
-        <!-- driver configuration -->
-        <param name="mode" value="A"/>
-        <param name="rate" value="10.0"/>
-        <param name="latitude" value="55.912"/>
-    </node>
-    <!--<include file="$(find kvh_gyroscope)/launch/kvh_gyro.launch" />-->
+    <include file="$(find kvh_gyroscope)/launch/kvh_gyro.launch" />
+
+    <!-- GPS and NTPD time sync -->
+    <include file="$(find vehicle_core)/launch/vehicle_gps.launch" />
+    <include file="$(find vehicle_core)/launch/vehicle_ntpd.launch" />
 
     <!-- thruster drivers -->
     <include file="$(find thrusters_controller)/launch/driver.launch" />

@@ -40,7 +40,7 @@
 import numpy as np
 
 
-# pythran export compute_jacobian(float, float, float)
+#pythran export compute_jacobian(float, float, float)
 def compute_jacobian(phi, theta, psi):
     """This functions computes the jacobian matrix used for converting body-frame to earth-frame coordinates.
 
@@ -49,11 +49,10 @@ def compute_jacobian(phi, theta, psi):
     :param psi: yaw angle (n)
     :return: J matrix (6x6)
     """
-
     return update_jacobian(np.zeros((6,6)), phi, theta, psi)
 
 
-# pythran export update_jacobian(float[], float, float, float)
+#pythran export update_jacobian(float[][], float, float, float)
 def update_jacobian(J, phi, theta, psi):
     """This functions computes the jacobian matrix used for converting body-frame to earth-frame coordinates.
 
@@ -151,7 +150,6 @@ def calc_coriolis(vel, mass, cog, inertia, added_terms):
     return CRB + CA
 
 
-
 #pythran export calc_damping(float[], float[])
 def calc_damping(vel, quadratic_coeff):
     # unpack arguments (following Fossen's conventions)
@@ -201,7 +199,7 @@ def calc_mass_term(vel, mass_matrix):
     ])
 
 
-#pythran export calc_model_forward(float[], float[], float[], float[], float, float[], float, float, float[][], float[], float[])
+##pythran export calc_model_forward(float[], float[], float[], float[], float, float[], float, float, float[][], float[], float[])
 def calc_model_forward(pos, vel, cog, cob, mass, inertia, W, B, mass_matrix, added_terms, quadratic_coeff):
     M = calc_mass_term(vel, mass_matrix)
     C = calc_coriolis(vel, mass, cog, inertia, added_terms)
@@ -214,7 +212,7 @@ def calc_model_forward(pos, vel, cog, cob, mass, inertia, W, B, mass_matrix, add
     return M + F_c + F_d + G
 
 
-#pythran export calc_other_forces(float[], float[], float[], float[], float, float[], float, float, float[], float[])
+##pythran export calc_other_forces(float[], float[], float[], float[], float, float[], float, float, float[], float[])
 def calc_other_forces(pos, vel, cog, cob, mass, inertia, W, B, added_terms, quadratic_coeff):
     C = calc_coriolis(vel, mass, cog, inertia, added_terms)
     D = calc_damping(vel, quadratic_coeff)
