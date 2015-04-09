@@ -171,7 +171,7 @@ class VehicleModel(object):
         """
 
         # numerical limits
-        pos[3:6] = np.clip(pos[3:6], -self.lim_att, self.lim_att)
+        #pos[3:6] = np.clip(pos[3:6], -self.lim_att, self.lim_att)
         vel = np.clip(vel, -self.lim_vel, self.lim_vel)
 
         return dm.calc_model_forward(
@@ -194,7 +194,7 @@ class VehicleModel(object):
         """
 
         # numerical limits
-        pos[3:6] = np.clip(pos[3:6], -self.lim_att, self.lim_att)
+        #pos[3:6] = np.clip(pos[3:6], -self.lim_att, self.lim_att)
         vel = np.clip(vel, -self.lim_vel, self.lim_vel)
 
         return np.dot(self.M, acc) + dm.calc_other_forces(
