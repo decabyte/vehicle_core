@@ -27,6 +27,5 @@
 
     <!-- platform_monitor (provides indicators and basic measurements) -->
     <include file="$(find platform_monitor)/launch/platform_monitor.launch" />
-    <!-- <include file="$(find energy_monitor)/launch/energy_monitor.launch" /> -->
 
 </launch>
