@@ -7,7 +7,7 @@ OPTS='-x "(.*)/compressed(.*)|(.*)/theora/(.*)"'
 
 # usage
 print_usage() {
-    echo "Usage: $0 <prefix> [<size>]"
+    echo "Usage: $(basename $0) <prefix> [<size>]"
     echo "Record all messages into a splitted .bag file with the same <prefix>"
     echo ""
     echo "Mandatory arguments:"
@@ -26,11 +26,6 @@ fi
 if [[ ! -n $2 ]]; then
     SIZE=2048
 fi
-
-# info
-echo "Extracting data from bag files in $INPUT_DIR into csv files in $OUTPUT_DIR"
-echo "This can require some time, please wait ..."
-echo ""
 
 # recording
 echo "Starting the recording (please press Ctrl+C to terminate) ..."
