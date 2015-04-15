@@ -24,7 +24,7 @@ if [[ ! -n $1 ]]; then
 fi
 
 if [[ ! -n $2 ]]; then
-    SIZE=2048
+    SIZE=1800
 fi
 
 # recording
