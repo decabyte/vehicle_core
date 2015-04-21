@@ -123,7 +123,7 @@ PATH_LINES = 'lines'
 # timing
 RATE_NODE = 5           # Hz
 RATE_STATUS = 0.5       # Hz
-HOVER_TIMEOUT = 30      # sec
+HOVER_TIMEOUT = 60      # sec
 
 
 # utils
@@ -238,8 +238,12 @@ class PathController(object):
                 self.path_time_end = rospy.Time().now().to_sec()
                 self.publish_path_status()
 
+                # calculate the remaining path time
+                hover_timeout = self.path_timeout - self.path_time_elapsed
+                hover_timeout = max(HOVER_TIMEOUT, hover_timeout)
+
                 # switch to hover mode
-                self.cmd_hover(self.des_pos, timeout=HOVER_TIMEOUT)
+                self.cmd_hover(self.des_pos, timeout=hover_timeout)
 
             #rospy.logdebug('%s position request: %s', self.name, self.des_pos)
 
