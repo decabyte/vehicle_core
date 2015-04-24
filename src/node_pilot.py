@@ -103,6 +103,7 @@ TOPIC_STAY_REQ = 'pilot/stay_req'
 TOPIC_USER = 'user/forces'
 SRV_SWITCH = 'pilot/switch'
 SRV_RELOAD = 'pilot/reload'
+SRV_DIS_AXIS = 'pilot/disable_axis'
 SRV_THRUSTERS = 'thrusters/switch'
 TOPIC_GAINS = 'controller/gains'
 
@@ -154,7 +155,8 @@ class VehiclePilot(object):
         # initial status
         self.ctrl_status = CTRL_DISABLED
         self.ctrl_mode = vc.MODE_POSITION
-        self.disable_axis = np.zeros(6)
+        self.disable_axis_pilot = np.zeros(6)                   # works at global level
+        self.disable_axis_user = np.zeros(6)                    # works at request level
         self.max_pitch = MAX_PITCH
         self.max_speed = MAX_SPEED
 
@@ -210,6 +212,7 @@ class VehiclePilot(object):
         self.s_switch = rospy.Service(SRV_SWITCH, BooleanService, self.srv_switch)
         self.s_reload = rospy.Service(SRV_RELOAD, Empty, self.srv_reload)
         self.s_lim = rospy.Service(SRV_SPEED_LIM, FloatService, self.srv_speed_limits)
+        self.s_dis = rospy.Service(SRV_DIS_AXIS, FloatService, self.srv_disable_axis)
 
         # adaptive thruster allocation matrix and thruster usage weights
         self.diagnostic_metric = np.zeros(6)
@@ -322,8 +325,9 @@ class VehiclePilot(object):
             # enable the low-level controller
             self.ctrl_status = CTRL_ENABLED
 
-            # reset axis
-            self.disable_axis = np.zeros(6)
+            # reset axis disable of last request
+            #   this doesn't change the global axis disable request
+            self.disable_axis_user = np.zeros(6)
 
             return BooleanServiceResponse(True)
         else:
@@ -382,6 +386,18 @@ class VehiclePilot(object):
 
         self.lim_vel_ctrl = np.array(data.values[0:6])
         self._check_inputs()                                    # prevents bad input to reach the pilot
+
+
+    # disable axis (per service request)
+    def srv_disable_axis(self, data):
+        if len(data.request) == 6:
+            self.disable_axis_pilot = np.array(data.request[0:6])
+        else:
+            rospy.logwarn('%s: resetting disabled axis', self.name)
+            self.disable_axis_pilot = np.zeros(6)
+
+        rospy.logwarn('%s: set disabled axis mask: %s', self.name, self.disable_axis_pilot)
+        return FloatServiceResponse(result=True, response=self.disable_axis_pilot.tolist())
 
 
     def handle_user(self, data):
@@ -449,7 +465,7 @@ class VehiclePilot(object):
             self.lim_vel_user = self.max_speed
 
             # ignore disabled axis
-            self.disable_axis = np.array(data.disable_axis)
+            self.disable_axis_user = np.array(data.disable_axis)
 
             # optionally apply speeds limits if requested by the user
             if len(data.limit_velocity) == 6:
@@ -474,7 +490,7 @@ class VehiclePilot(object):
             self.lim_vel_user = self.max_speed
 
             # ignore disabled axis
-            self.disable_axis = np.array(data.disable_axis)
+            self.disable_axis_user = np.array(data.disable_axis)
 
             # optionally apply speeds limits if requested by the user
             if len(data.limit_velocity) == 6:
@@ -494,7 +510,7 @@ class VehiclePilot(object):
             self.lim_vel_user = self.max_speed
 
             # ignore disabled axis
-            self.disable_axis = np.array(data.disable_axis)
+            self.disable_axis_user = np.array(data.disable_axis)
 
             self._check_inputs()
             self.ctrl_mode = vc.MODE_VELOCITY
@@ -575,7 +591,11 @@ class VehiclePilot(object):
                 self.tau_ctrl[4] = 0.0
 
             # disable control of specific axis (if requested by user)
-            idx_dis = np.where(self.disable_axis == 1)
+            idx_dis = np.where(self.disable_axis_user == 1)
+            self.tau_ctrl[idx_dis] = 0
+
+            # or by service call
+            idx_dis = np.where(self.disable_axis_pilot == 1)
             self.tau_ctrl[idx_dis] = 0
 
 
@@ -688,7 +708,7 @@ class VehiclePilot(object):
             self.lim_vel_user, self.lim_vel_ctrl,
             self.tau_ctrl, self.tau_user, self.tau_total,
             self.forces, self.forces_sat, self.throttle,
-            self.thruster_efficiency, self.disable_axis
+            self.thruster_efficiency, np.maximum(self.disable_axis_user, self.disable_axis_pilot)
         )
 
 
