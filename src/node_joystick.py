@@ -190,16 +190,16 @@ class JoystickInterface(object):
         self.btn_thrusters = np.roll(self.btn_thrusters, -1)
 
 
-        # switch joystick mode
-        if self.btn_switch[-1] == 1 and self.btn_switch[-2] == 0:
-            if self.mode == MODE_FORCE:
-                self.mode = MODE_DIRECT
-            else:
-                self.mode = MODE_FORCE
-
-            rospy.loginfo('%s joystick now in mode: %s', self.name, self.mode)
-
-        self.btn_switch = np.roll(self.btn_switch, -1)
+        # # switch joystick mode
+        # if self.btn_switch[-1] == 1 and self.btn_switch[-2] == 0:
+        #     if self.mode == MODE_FORCE:
+        #         self.mode = MODE_DIRECT
+        #     else:
+        #         self.mode = MODE_FORCE
+        #
+        #     rospy.loginfo('%s joystick now in mode: %s', self.name, self.mode)
+        #
+        # self.btn_switch = np.roll(self.btn_switch, -1)
 
 
         # parse buttons and select joystick mode
@@ -231,50 +231,56 @@ class JoystickInterface(object):
         # forces clipping
         forces = np.clip(forces, -1, 1) * tc.MAX_U
 
-        # FORCES command mode
-        #   send forces to the pilot
-        if self.mode == MODE_FORCE:
-            uf = Vector6Stamped()
-            uf.header.stamp = rospy.Time.now()
-            uf.values = forces.flatten().tolist()
-            self.pub_for.publish(uf)
+        # FORCES command mode default
+        uf = Vector6Stamped()
+        uf.header.stamp = rospy.Time.now()
+        uf.values = forces.flatten().tolist()
+        self.pub_for.publish(uf)
 
-        # DIRECT command mode
-        #   bypass the pilot and sends direct requests to thruster driver
-        #   this is using the linearization model to transform forces to throttle
-        #   and the thruster allocation matrix to distribute forces on vehicle axis
-        elif self.mode == MODE_DIRECT:
-            # throttle mapping using the linearization and limits
-            tau = np.dot(tc.inv_TAM, forces)
-            throttle = tm.estimate_throttle(tau, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)
-            throttle = np.clip(throttle, -self.speed_limit, self.speed_limit)
-
-            # send throttle
-            thc = ThrusterCommand()
-            thc.header.stamp = rospy.Time.now()
-            thc.throttle = throttle.astype(int).flatten().tolist()
-            self.pub_thr.publish(thc)
-
-        # SPEED command mode
-        #   bypass the pilot and sends direct requests to thruster driver
-        #   by applying a simple transformation (maybe useful for testing)
-        elif self.mode == MODE_SPEED:
-            lat_rear = sway + -(yaw)
-            lat_front = sway + yaw
-
-            # create the speed vector
-            throttle = np.array([surge, surge, lat_rear, lat_front, heave, heave]) * 100
-            throttle = np.clip(throttle, -self.speed_limit, self.speed_limit)
-
-            # send throttle
-            thc = ThrusterCommand()
-            thc.header.stamp = rospy.Time.now()
-            thc.throttle = throttle.astype(int).flatten().tolist()
-            self.pub_thr.publish(thc)
-
-        else:
-            pass
-
+        # # MULTIPLE MODES (this should be disabled after initial testing and debugging)
+        # # FORCES command mode
+        # #   send forces to the pilot
+        # if self.mode == MODE_FORCE:
+        #     uf = Vector6Stamped()
+        #     uf.header.stamp = rospy.Time.now()
+        #     uf.values = forces.flatten().tolist()
+        #     self.pub_for.publish(uf)
+        #
+        # # DIRECT command mode
+        # #   bypass the pilot and sends direct requests to thruster driver
+        # #   this is using the linearization model to transform forces to throttle
+        # #   and the thruster allocation matrix to distribute forces on vehicle axis
+        # elif self.mode == MODE_DIRECT:
+        #     # throttle mapping using the linearization and limits
+        #     tau = np.dot(tc.inv_TAM, forces)
+        #     throttle = tm.estimate_throttle(tau, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)
+        #     throttle = np.clip(throttle, -self.speed_limit, self.speed_limit)
+        #
+        #     # send throttle
+        #     thc = ThrusterCommand()
+        #     thc.header.stamp = rospy.Time.now()
+        #     thc.throttle = throttle.astype(int).flatten().tolist()
+        #     self.pub_thr.publish(thc)
+        #
+        # # SPEED command mode
+        # #   bypass the pilot and sends direct requests to thruster driver
+        # #   by applying a simple transformation (maybe useful for testing)
+        # elif self.mode == MODE_SPEED:
+        #     lat_rear = sway + -(yaw)
+        #     lat_front = sway + yaw
+        #
+        #     # create the speed vector
+        #     throttle = np.array([surge, surge, lat_rear, lat_front, heave, heave]) * 100
+        #     throttle = np.clip(throttle, -self.speed_limit, self.speed_limit)
+        #
+        #     # send throttle
+        #     thc = ThrusterCommand()
+        #     thc.header.stamp = rospy.Time.now()
+        #     thc.throttle = throttle.astype(int).flatten().tolist()
+        #     self.pub_thr.publish(thc)
+        #
+        # else:
+        #     pass
 
 
 if __name__ == '__main__':
