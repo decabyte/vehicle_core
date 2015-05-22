@@ -148,10 +148,10 @@ class PathController(object):
         self.path_mode = PATH_SIMPLE
         self.path_obj = None
 
-        self.path_timeout = 0
-        self.path_time_start = -1
-        self.path_time_end = -1
-        self.path_time_elapsed = 0
+        self.path_timeout = 0.0
+        self.path_time_start = -1.0
+        self.path_time_end = -1.0
+        self.path_time_elapsed = 0.001
 
         self.hover_timeout = HOVER_TIMEOUT
 

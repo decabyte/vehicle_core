@@ -49,7 +49,35 @@ def compute_jacobian(phi, theta, psi):
     :param psi: yaw angle (n)
     :return: J matrix (6x6)
     """
-    return update_jacobian(np.zeros((6,6), dtype=np.float64), phi, theta, psi)
+    J = np.zeros((6,6))
+
+    # jacobian one
+    J[0, 0] = np.cos(theta) * np.cos(psi)
+    J[0, 1] = np.cos(psi) * np.sin(theta) * np.sin(phi) - np.sin(psi) * np.cos(phi)
+    J[0, 2] = np.sin(psi) * np.sin(phi) + np.cos(psi) * np.cos(phi) * np.sin(theta)
+
+    J[1, 0] = np.cos(theta) * np.sin(psi)
+    J[1, 1] = np.cos(psi) * np.cos(phi) + np.sin(phi) * np.sin(theta) * np.sin(psi)
+    J[1, 2] = np.sin(psi) * np.sin(theta) * np.cos(phi) - np.cos(psi) * np.sin(phi)
+
+    J[2, 0] = -np.sin(theta)
+    J[2, 1] = np.cos(theta) * np.sin(phi)
+    J[2, 2] = np.cos(theta) * np.cos(phi)
+
+    # jacobian two
+    J[3, 3] = 1.0
+    J[3, 4] = np.sin(phi) * np.tan(theta)
+    J[3, 5] = np.cos(phi) * np.tan(theta)
+
+    J[4, 3] = 0.0
+    J[4, 4] = np.cos(phi)
+    J[4, 5] = -np.sin(phi)
+
+    J[5, 3] = 0.0
+    J[5, 4] = np.sin(phi) / np.cos(theta)
+    J[5, 5] = np.cos(phi) / np.cos(theta)
+
+    return J
 
 
 #pythran export update_jacobian(float[][], float, float, float)
@@ -62,26 +90,33 @@ def update_jacobian(J, phi, theta, psi):
     :param psi: yaw angle (n)
     :return: J matrix (6x6)
     """
+    J = np.zeros((6,6))
 
     # jacobian one
-    J[0:3,0:3] = np.array([
-        [np.cos(theta) * np.cos(psi),
-         np.cos(psi) * np.sin(theta) * np.sin(phi) - np.sin(psi) * np.cos(phi),
-         np.sin(psi) * np.sin(phi) + np.cos(psi) * np.cos(phi) * np.sin(theta)],
+    J[0, 0] = np.cos(theta) * np.cos(psi)
+    J[0, 1] = np.cos(psi) * np.sin(theta) * np.sin(phi) - np.sin(psi) * np.cos(phi)
+    J[0, 2] = np.sin(psi) * np.sin(phi) + np.cos(psi) * np.cos(phi) * np.sin(theta)
 
-        [np.cos(theta) * np.sin(psi),
-         np.cos(psi) * np.cos(phi) + np.sin(phi) * np.sin(theta) * np.sin(psi),
-         np.sin(psi) * np.sin(theta) * np.cos(phi) - np.cos(psi) * np.sin(phi)],
+    J[1, 0] = np.cos(theta) * np.sin(psi)
+    J[1, 1] = np.cos(psi) * np.cos(phi) + np.sin(phi) * np.sin(theta) * np.sin(psi)
+    J[1, 2] = np.sin(psi) * np.sin(theta) * np.cos(phi) - np.cos(psi) * np.sin(phi)
 
-        [-np.sin(theta), np.cos(theta) * np.sin(phi), np.cos(theta) * np.cos(phi)]
-    ])
+    J[2, 0] = -np.sin(theta)
+    J[2, 1] = np.cos(theta) * np.sin(phi)
+    J[2, 2] = np.cos(theta) * np.cos(phi)
 
     # jacobian two
-    J[3:6,3:6] = np.array([
-        [1.0,   np.sin(phi)*np.tan(theta),    np.cos(phi)*np.tan(theta)],
-        [0.0,   np.cos(phi),                  -np.sin(phi)],
-        [0.0,   np.sin(phi)/np.cos(theta),    np.cos(phi)/np.cos(theta)]
-    ])
+    J[3, 3] = 1.0
+    J[3, 4] = np.sin(phi) * np.tan(theta)
+    J[3, 5] = np.cos(phi) * np.tan(theta)
+
+    J[4, 3] = 0.0
+    J[4, 4] = np.cos(phi)
+    J[4, 5] = -np.sin(phi)
+
+    J[5, 3] = 0.0
+    J[5, 4] = np.sin(phi) / np.cos(theta)
+    J[5, 5] = np.cos(phi) / np.cos(theta)
 
     return J
 
