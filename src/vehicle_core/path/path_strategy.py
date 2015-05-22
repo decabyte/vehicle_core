@@ -61,15 +61,9 @@ DEFAULT_TOLERANCES = np.array([
 
 LINE_SPACING = 10       # meters
 
-FAST_SPEED = 1.5        # m/s
-FAST_DISTANCE = 30.0    # meters
-FAST_ADJUST = 1.0       # seconds
-FAST_TOLERANCES = 3     # meters
-
-FL_LOOK_AHEAD = 6          # meters
-FL_LOOK_AHEAD_MIN = 3      # meters
-FL_TOLERANCES = 5      # meters
-
+FAST_SPEED = 1.0        # m/s
+FAST_TOLERANCES = 3.0   # meters
+FAST_LOOKAHEAD = 5.0    # meters
 
 
 class PathStrategy(object):
@@ -256,27 +250,17 @@ class FastTimeStrategy(PathStrategy):
 
         # mode config:
         #   - set a target speed for the path navigation
-        #   - set a threshold distance before reducing the time (protects from runaway)
         #   - adjust the time if vehicle is far away from the point
+        self.look_ahead = float(kwargs.get('look_ahead', FAST_LOOKAHEAD))
         self.target_speed = float(kwargs.get('target_speed', FAST_SPEED))
-        self.thrs_dist = float(kwargs.get('distance_threshold', FAST_DISTANCE))
-        self.time_adjust = float(kwargs.get('time_adjust', FAST_ADJUST))
         self.kind = kwargs.get('interpolation_method', 'linear')
 
         # use dedicated tolerances
         self.tolerances = FAST_TOLERANCES
 
-        # timing
-        # TODO: provide a local time axis from the path controller instead of using wall-clocks! bug with path pause!
-        self.t_prev = time.time()       # wallclock when calling update()
-        self.t_real = time.time()       # wallclock of previous update() call
-
-        # time at the end of each leg
-        self.t_interp = self.cum_distances / self.target_speed
-
         # trajectory time
         self.t = 0.0
-        self.t_start = 0.0
+        self.t_interp = self.cum_distances / self.target_speed      # time at the end of each leg
         self.t_end = self.t_interp[-1]
 
         # interpolating assuming constant speed
@@ -290,15 +274,13 @@ class FastTimeStrategy(PathStrategy):
         ]
 
 
-    # TODO: check the effect of speed parameter on this mode!
     def update(self, position, velocity):
-        # update trajectory time
-        self.t_real = time.time()               # current wall-clock
-        self.t += self.t_real - self.t_prev     # advance time with calculated delta
-        self.t_prev = self.t_real               # save wall-clock
+        curr_error = self.calculate_position_error(position, self.des_pos)
 
-        # do not allow the timer to move to the previous point
-        self.t = np.maximum(self.t, self.t_interp[self.cnt - 1])
+        # close enough to next point?
+        if np.linalg.norm(curr_error[0:3]) < self.look_ahead:
+            # compute next time for the interpolation
+            self.t += self.look_ahead / self.target_speed
 
         if self.t < self.t_end:
             self.des_pos[0] = self.fc[0](self.t)
@@ -321,10 +303,6 @@ class FastTimeStrategy(PathStrategy):
                 self.des_pos = self.points[-1]
                 #print('Path completed')
 
-        # if vehicle is too far from the point stop timer
-        if tt.distance_between(position, self.des_pos, spacing_dim=3) > self.thrs_dist:
-            self.t -= self.time_adjust
-
         # update waypoint counter
         try:
             # do not allow the counter to move back
@@ -333,80 +311,77 @@ class FastTimeStrategy(PathStrategy):
             self.cnt = len(self.points) - 1
 
 
-
-
-
-class FastLineStrategy(PathStrategy):
-    """FastLineStrategy is trying to achieve the same results for FastTimeStrategy using the concept of distance travelled
-    along the requested trajectory instead of use time to move the requested point in front of the vehicle.
-
-    WARNING: This may be removed in the future and it use is deprecated.
-    """
-
-    def __init__(self, points, position, **kwargs):
-        super(FastLineStrategy, self).__init__(points, position, **kwargs)
-
-        self.position_interpolation = [
-            sci.interpolate.interp1d(self.cum_distances, self.points[:, 0], kind='linear'),
-            sci.interpolate.interp1d(self.cum_distances, self.points[:, 1], kind='linear'),
-            sci.interpolate.interp1d(self.cum_distances, self.points[:, 2], kind='linear'),
-            sci.interpolate.interp1d(self.cum_distances, self.points[:, 3], kind='linear'),
-            sci.interpolate.interp1d(self.cum_distances, self.points[:, 4], kind='linear'),
-            sci.interpolate.interp1d(self.cum_distances, self.points[:, 5], kind='linear')
-        ]
-
-        self.look_ahead = kwargs.get('look_ahead', FL_LOOK_AHEAD)
-        self.look_ahead_requested = self.look_ahead
-        self.tolerances = FL_TOLERANCES
-
-
-    def generate_position_ahead(self, position, distance):
-        position_ahead = np.zeros(6)
-        distance = np.clip(distance, 0, self.cum_distances[-1])
-        # if distance ahead is greater than the length of the path go to the end of the path
-
-        position_ahead[0] = self.position_interpolation[0](distance)
-        position_ahead[1] = self.position_interpolation[1](distance)
-        position_ahead[2] = self.position_interpolation[2](distance)
-        position_ahead[3:5] = 0
-        position_ahead[5] = tt.calculate_orientation(position, position_ahead)
-
-        return position_ahead
-
-    def update(self, position, velocity):
-
-        if self.cnt >= len(self.points):
-            self.des_pos = self.points[-1]
-            return
-
-        # calculate the position error towards current waypoint
-        previous_error = self.calculate_position_error(position, self.des_pos)
-
-        distance = self.distance_completed(position)
-        distance_ahead = distance + self.look_ahead
-        distance_control = distance + self.look_ahead / 2.0
-
-        # update requested position using the look-ahead parameter
-        self.des_pos = self.generate_position_ahead(position, distance_ahead)
-
-        if distance_control >= self.cum_distances[self.cnt]:
-            self.cnt += 1
-
-            # adaptive look-ahead (prevent drifting by gradually reducing the look-ahead)
-            if not np.all(np.abs(previous_error) < self.tolerances):
-                self.look_ahead -= 1
-            else:
-                self.look_ahead += 1
-
-            #print('updated look-ahead: %s' % self.look_ahead)
-            #print('last error: %s' % np.abs(previous_error))
-            self.look_ahead = np.clip(self.look_ahead, FL_LOOK_AHEAD_MIN, self.look_ahead_requested)
-
-            # check for end of path
-            if self.cnt < len(self.points):
-                #print('WP reached')
-                pass
-            else:
-                self.path_completed = True
-                self.des_pos = self.points[-1]
-                #print('Path completed')
+# class FastLineStrategy(PathStrategy):
+#     """FastLineStrategy is trying to achieve the same results for FastTimeStrategy using the concept of distance travelled
+#     along the requested trajectory instead of use time to move the requested point in front of the vehicle.
+#
+#     WARNING: This may be removed in the future and it use is deprecated.
+#     """
+#
+#     def __init__(self, points, position, **kwargs):
+#         super(FastLineStrategy, self).__init__(points, position, **kwargs)
+#
+#         self.position_interpolation = [
+#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 0], kind='linear'),
+#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 1], kind='linear'),
+#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 2], kind='linear'),
+#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 3], kind='linear'),
+#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 4], kind='linear'),
+#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 5], kind='linear')
+#         ]
+#
+#         self.look_ahead = kwargs.get('look_ahead', FL_LOOK_AHEAD)
+#         self.look_ahead_requested = self.look_ahead
+#         self.tolerances = FL_TOLERANCES
+#
+#
+#     def generate_position_ahead(self, position, distance):
+#         position_ahead = np.zeros(6)
+#         distance = np.clip(distance, 0, self.cum_distances[-1])
+#         # if distance ahead is greater than the length of the path go to the end of the path
+#
+#         position_ahead[0] = self.position_interpolation[0](distance)
+#         position_ahead[1] = self.position_interpolation[1](distance)
+#         position_ahead[2] = self.position_interpolation[2](distance)
+#         position_ahead[3:5] = 0
+#         position_ahead[5] = tt.calculate_orientation(position, position_ahead)
+#
+#         return position_ahead
+#
+#     def update(self, position, velocity):
+#
+#         if self.cnt >= len(self.points):
+#             self.des_pos = self.points[-1]
+#             return
+#
+#         # calculate the position error towards current waypoint
+#         previous_error = self.calculate_position_error(position, self.des_pos)
+#
+#         distance = self.distance_completed(position)
+#         distance_ahead = distance + self.look_ahead
+#         distance_control = distance + self.look_ahead / 2.0
+#
+#         # update requested position using the look-ahead parameter
+#         self.des_pos = self.generate_position_ahead(position, distance_ahead)
+#
+#         if distance_control >= self.cum_distances[self.cnt]:
+#             self.cnt += 1
+#
+#             # adaptive look-ahead (prevent drifting by gradually reducing the look-ahead)
+#             if not np.all(np.abs(previous_error) < self.tolerances):
+#                 self.look_ahead -= 1
+#             else:
+#                 self.look_ahead += 1
+#
+#             #print('updated look-ahead: %s' % self.look_ahead)
+#             #print('last error: %s' % np.abs(previous_error))
+#             self.look_ahead = np.clip(self.look_ahead, FL_LOOK_AHEAD_MIN, self.look_ahead_requested)
+#
+#             # check for end of path
+#             if self.cnt < len(self.points):
+#                 #print('WP reached')
+#                 pass
+#             else:
+#                 self.path_completed = True
+#                 self.des_pos = self.points[-1]
+#                 #print('Path completed')
