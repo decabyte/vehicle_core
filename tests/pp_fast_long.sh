@@ -1,4 +1,5 @@
 #!/bin/bash
+
 rosservice call /path/control """
 command: 'path'
 points:

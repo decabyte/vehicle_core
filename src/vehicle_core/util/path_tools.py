@@ -37,30 +37,23 @@
 #  Original authors:
 #   Valerio De Carolis, Marian Andrecki, Corina Barbalata, Gordon Frost
 
-"""Path Utilities Module
-
-Tasks:
-    - plot paths
-    - manipulates paths
-    - etc.
-"""
-
-from __future__ import division
+from __future__ import division, absolute_import
 
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from matplotlib import animation
+import matplotlib.animation
 
-from vehicle_core.path import path_strategy as ps
 from vehicle_core.util import trajectory_tools as tt
 from vehicle_core.util import search_patterns as sp
+from vehicle_core.path import path_strategy as ps
 
 
 def plot_run(points, requested_points, vehicle_points, animate=False):
-    # plots
     fig, ax = tt.plot_trajectory(points)
+
     tt.plot_trajectory(requested_points, fig=fig, ax=ax, p_style='b', show_orientation=False)
     tt.plot_trajectory(vehicle_points, fig=fig, ax=ax, p_style='g')
 
@@ -83,7 +76,7 @@ def plot_run(points, requested_points, vehicle_points, animate=False):
             patch._angle = -np.rad2deg(angle)
             return patch,
 
-        anim = animation.FuncAnimation(
+        anim = mpl.animation.FuncAnimation(
             fig, animate, init_func=init, frames=len(vehicle_points),
             interval=70, blit=True
         )
@@ -91,13 +84,13 @@ def plot_run(points, requested_points, vehicle_points, animate=False):
     plt.show()
 
 
-def demonstrate_modes(points, mode, iterations, animate=False, step=0.3):
+def demonstrate_modes(points, mode, iterations, animate=False, step=0.3, **kwargs):
     if mode == 'simple':
         path_mode = ps.SimpleStrategy(points[1:], position=points[0])
     elif mode == 'lines':
-        path_mode = ps.LineStrategy(points[1:], position=points[0], spacing=1)
+        path_mode = ps.LineStrategy(points[1:], position=points[0], spacing=1.0)
     elif mode == 'fast':
-        path_mode = ps.FastLineStrategy(points[1:], position=points[0], look_ahead=5)
+        path_mode = ps.FastTimeStrategy(points[1:], position=points[0], look_ahead=3.0)
     else:
         return
 
@@ -130,12 +123,13 @@ def move_vehicle(current_position, desired_position, step):
 
 
 if __name__ == '__main__':
+    # test script
     center = np.array([0, 0, 0, 0, 0, 0])
 
     # points = sp.circular_pattern(center, radius=50.0)
     # points = sp.square_pattern(center, distance=30.0)
     # points = sp.nested_square_pattern(center, ext_dist=30.0, int_dist=10.0, spacing=5.0)
-    points = sp.spiral_pattern(center, distance=15.0, spacing=5)
+    points = sp.spiral_pattern(center, distance=20.0, spacing=5.0)
 
     # points = np.array([[0, 0, 0, 0, 0, 3.14],
     #                    [150, 5, 0, 0, 0, 0],

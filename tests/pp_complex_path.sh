@@ -1,4 +1,6 @@
- rosservice call /path/control """
+#!/usr/bin/env bash
+
+rosservice call /path/control """
 command: 'path'
 points:
 - values: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

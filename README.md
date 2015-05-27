@@ -57,11 +57,11 @@ Run Simulator
   rostopic pub /pilot/position_req vehicle_interface/PilotRequest "position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
   ```
 
-Extra: For trajectory tracking, enable the path
+Extra: For trajectory tracking, enable the path:
   ```
   roslaunch vehicle_core path_controller.launch
-  vehicle_core/scripts/pp_start.sh
-  vehicle_core/scripts/pp_lines_path.sh
+  vehicle_core/tests/pp_lines_path.sh
+  vehicle_core/scripts/path_cli.sh start
   ```
   
 Extra: Use a different control law, run this instead of `pilot_sim.launch`:

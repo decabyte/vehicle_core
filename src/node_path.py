@@ -37,21 +37,6 @@
 #  Original authors:
 #   Valerio De Carolis, Marian Andrecki, Corina Barbalata, Gordon Frost
 
-"""
-This script picks up a list of waypoints from a service, processes the points
-differently depending on the mode. Passes a pilot request to the controller.
-
-Different modes that can be used:
-- simple - list of points is passed straight to the low level controller
-- line - list is converted so that the trajectory is composed of only
-   straight lines and yaw adjustments
-
-In the future?
-- fast - optimises for time, smoothest path between the points
-- hold orientation - for looking at a wall while moving along it, etc.
-- avoid - use sonar data to generate path around an obstacle
-"""
-
 from __future__ import division
 
 import traceback

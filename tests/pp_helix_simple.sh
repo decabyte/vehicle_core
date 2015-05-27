@@ -1,5 +1,6 @@
 #!/bin/bash
- rosservice call /path/control """
+
+rosservice call /path/control """
 command: 'path'
 points:
 - values: [0.4, -1.0, 1.0, 0.0, 0.0, 0.0]
@@ -50,12 +51,7 @@ points:
 
 options:
 - key: 'mode'
-  value: 'fast'
+  value: 'simple'
 - key: 'timeout'
   value: '300'
-- key: 'target_speed'
-  value: '0.2'
 """
-
-#- values: [1,-1,1,0,0,-1.047]
-#- values: [5.4,-9.8,1,0,0,-1.047]

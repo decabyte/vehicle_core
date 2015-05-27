@@ -41,9 +41,7 @@ TOPIC_STATUS = 'path/status'
 TOPIC_POS = 'pilot/position_req'
 SRV_PATH = 'path/control'
 SRV_SWITCH = 'pilot/switch'
-
 TOPIC_ENERGY = 'saetta/report'
-
 
 # default conf
 CSV_PREFIX = 'results'
@@ -51,7 +49,6 @@ DEPTH = 1.0
 YAW_OFFSET = 0
 X_OFFSET = 0
 Y_OFFSET = 0
-
 
 
 class PathExecutor(object):
@@ -99,7 +96,6 @@ class PathExecutor(object):
         if USE_ENERGY:
             self.sub_energy = rospy.Subscriber(TOPIC_ENERGY, EnergyReport, self.handle_energy)
             self.header.append('energy_used')
-
 
 
     def handle_energy(self, msg):
@@ -168,7 +164,6 @@ class PathExecutor(object):
             writer.writerow(row)
 
 
-
     def run(self):
         # check data file
         self.check_export()
@@ -228,7 +223,6 @@ class PathExecutor(object):
             rospy.logerr('%s unable to communicate with path service ...', self.name)
             sys.exit(-1)
 
-
         while self.wait:
             if rospy.is_shutdown():
                 sys.exit(-1)
@@ -280,7 +274,6 @@ class PathExecutor(object):
 
         # congratulations!
         rospy.loginfo('%s: experiment completed ...', self.name)
-
 
 
 if __name__ == '__main__':
