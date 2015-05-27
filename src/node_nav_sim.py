@@ -66,6 +66,7 @@ import tf.transformations as tft
 
 from vehicle_core.model import vehicle_model as vm
 from vehicle_core.model import dynamic_model as dm
+from vehicle_core.util import conversions as cnv
 
 from nav_msgs.msg import Odometry
 from auv_msgs.msg import NavSts
@@ -96,15 +97,6 @@ FRAME_CHILD = 'base_link'
 # simulator constants
 MAX_ABOVE_SEA_LEVEL = -0.15
 MAX_PITCH = 1.570
-
-
-# utils
-def wrap_pi(angle):
-    return ((angle + np.pi) % (2 * np.pi)) - np.pi
-
-def wrap_2pi(angle):
-    return ((angle + np.pi) % (2 * np.pi))
-
 
 
 class NavigationSimulator(object):
@@ -422,7 +414,7 @@ class NavigationSimulator(object):
         # self.pos = self.rk4_state[0:6]      # position is the integration of the velocity in body frame (for RK4)
 
         # wrap angles and limit pitch (-90 / 90)
-        self.pos[3:6] = wrap_pi(self.pos[3:6])
+        self.pos[3:6] = cnv.wrap_pi(self.pos[3:6])
         self.pos[4] = np.clip(self.pos[4], -MAX_PITCH, MAX_PITCH)
 
         # prevent the vehicle to fly to high! :)

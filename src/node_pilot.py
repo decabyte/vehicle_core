@@ -49,6 +49,7 @@ from vehicle_core.model import thruster_model as tm
 from vehicle_core.model import dynamic_model as dm
 from vehicle_core.control import thrust_allocation as ta
 from vehicle_core.control import vehicle_controller as vc
+from vehicle_core.util import conversions as cnv
 
 import rospy
 import roslib
@@ -113,14 +114,6 @@ TOPIC_SPD = 'pilot/speeds'                      # updates the controller speed l
 SRV_SPEED_LIM = 'pilot/speeds'                  # updates the controller speed limits (reduce saturation, srv call)
 SRV_FAULT_CTRL = 'pilot/fault_control'          # enable/disable the adaptive fault control
 #TOPIC_METRIC = 'thrusters/diagnostics'         # read the diagnostic metric (if any)
-
-
-# utils
-def wrap_pi(angle):
-    return ((angle + np.pi) % (2*np.pi)) - np.pi
-
-#def wrap_2pi(angle):
-#    return ((angle + np.pi) % (2*np.pi))
 
 
 # TODO: add a counter to user requests in order to avoid remembering very old requests for a long time
@@ -443,7 +436,7 @@ class VehiclePilot(object):
         #   wrap angles if necessary
         self.des_pos[2] = np.maximum(self.des_pos[2], 0)
         self.des_pos[3] = 0
-        self.des_pos[3:6] = wrap_pi(self.des_pos[3:6])
+        self.des_pos[3:6] = cnv.wrap_pi(self.des_pos[3:6])
 
         # velocity input checks:
         #   enforce speed limits (hurra!)
@@ -562,7 +555,6 @@ class VehiclePilot(object):
             va.values.append(Vector6(g))
 
         self.pub_gains.publish(va)
-
 
 
     def loop(self):
@@ -712,7 +704,6 @@ class VehiclePilot(object):
         )
 
 
-
 def main():
     rospy.init_node('vehicle_pilot')
     name = rospy.get_name()
@@ -752,7 +743,6 @@ def main():
     # rospy.loginfo('%s adaptive yaw enabled: %s', name, config.get('adaptive_yaw', False))
     # rospy.loginfo('%s fault control enabled: %s', name, config.get('fault_control', False))
     # rospy.loginfo('%s fault speeds enabled: %s', name, config.get('fault_speeds', False))
-
 
     # init the vehicle
     srv_thrusters = None

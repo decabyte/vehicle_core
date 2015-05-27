@@ -120,8 +120,6 @@ class OdometryNode(object):
         self.rot_mat = np.dot( rot_mat_z, rot_mat_y )
 
 
-
-
     def handle_nav(self, data):
         # parse data
         self.pos = np.array([
@@ -176,8 +174,6 @@ class OdometryNode(object):
 
         self.pub_odom.publish(od)
 
-
-
 def main():
     rospy.init_node('nav_odometry')
     name = rospy.get_name()
@@ -198,7 +194,6 @@ def main():
     # start odometry node
     on = OdometryNode(name, topic_input, topic_output, frame_parent, frame_child)
     rospy.spin()
-
 
 if __name__ == '__main__':
     main()

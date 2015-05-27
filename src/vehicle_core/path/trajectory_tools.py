@@ -47,27 +47,16 @@ Tasks:
 from __future__ import division
 
 import datetime
-import numpy as np
-np.set_printoptions(precision=3, suppress=True)
 
+import numpy as np
 import scipy as sci
-import scipy.misc
 import matplotlib.pyplot as plt
 
+import scipy.misc
+np.set_printoptions(precision=3, suppress=True)
 
-def wrap_angle(angle):
-    """
-    :param angle: in radians
-    :return: angle in radians from range (-pi, +pi)
-    """
-    return (angle + np.pi) % (2*np.pi) - np.pi
+from vehicle_core.util import conversions as cnv
 
-def wrap_angle_2pi(angle):
-    """
-    :param angle: in radians
-    :return: angle in radians from range (0, +2pi)
-    """
-    return ((angle + np.pi) % (2*np.pi))
 
 def pol2cart(r, th):
     """Convert from polar coordinates to cartesian coordinates (2D)
@@ -334,8 +323,8 @@ def interpolate_leg(A, B, spacing, dimensions=2, face_goal=False, min_distance=1
     if face_goal:
         leg[1:-1, 5] = face_angle
     else:
-        angle_diff = wrap_angle(B[5] - A[5])
-        leg[1:-1, 5] = wrap_angle(np.linspace(0, angle_diff, steps_advance) + A[5])
+        angle_diff = cnv.wrap_pi(B[5] - A[5])
+        leg[1:-1, 5] = cnv.wrap_pi(np.linspace(0, angle_diff, steps_advance) + A[5])
 
     # reach the end point
     leg[-1] = B
@@ -404,7 +393,7 @@ def interpolate_arc(A, B, radius, spacing, right=True, **kwargs):
     arc_length = np.abs(radius * (B_th - A_th))
 
     # this difference is necessary so that the interpolation is in the correct direction
-    angle_diff = wrap_angle(B_th - A_th)
+    angle_diff = cnv.wrap_pi(B_th - A_th)
 
     # number of steps in the interpolation
     steps = np.floor(arc_length/spacing) + 2
@@ -415,7 +404,7 @@ def interpolate_arc(A, B, radius, spacing, right=True, **kwargs):
     trajectory[-1] = B
 
     # generate equispaced angles on the circle to travel to starting from A_th
-    angles = wrap_angle(np.linspace(0, angle_diff, steps) + A_th)
+    angles = cnv.wrap_pi(np.linspace(0, angle_diff, steps) + A_th)
 
     # calculate xy coordinates corresponding to the points on the circle at a given angle
     xy_ref_centre = np.array(pol2cart(radius, angles)).T
@@ -464,7 +453,7 @@ def interpolate_sector(position, radius=5.0, sector=90.0, spacing=1.0, facing_ce
     points[:, 0] = y + center[0]
     points[:, 1] = x + center[1]
     points[:, 2] = position[2]
-    points[:, 5] = wrap_angle( calculate_orientation(points, center) ) #wrap_angle((-theta + np.pi/2) - np.pi)
+    points[:, 5] = cnv.wrap_pi( calculate_orientation(points, center) ) #cnv.wrap_pi((-theta + np.pi/2) - np.pi)
 
     if not facing_center:
         points[:, 5] += (np.pi / 2)
@@ -496,7 +485,7 @@ def interpolate_circle(center, radius=5.0, spacing=1.0, facing_center=True, **kw
     points[:, 0] = center[0] + y
     points[:, 1] = center[1] + x
     points[:, 2] = center[2]
-    points[:, 5] = wrap_angle( calculate_orientation(points, center) )
+    points[:, 5] = cnv.wrap_pi( calculate_orientation(points, center) )
 
     if not facing_center:
         points[:, 5] += (np.pi / 2)
@@ -530,7 +519,7 @@ def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, fa
     points[:, 0] = centre[0] + y
     points[:, 1] = centre[1] + x
     points[:, 2] = np.linspace(centre[2], centre[2] + height, num=steps)
-    points[:, 5] = wrap_angle( calculate_orientation(points, centre) )
+    points[:, 5] = cnv.wrap_pi( calculate_orientation(points, centre) )
 
     if not facing_center:
         points[:, 5] += (np.pi / 2)

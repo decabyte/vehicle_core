@@ -111,11 +111,6 @@ RATE_STATUS = 0.5       # Hz
 HOVER_TIMEOUT = 60      # sec
 
 
-# utils
-def wrap_angle(angle):
-    return (angle + np.pi) % (2*np.pi)-np.pi
-
-
 class PathController(object):
     def __init__(self, name, visualization=False):
         self.name = name

@@ -44,6 +44,7 @@ np.set_printoptions(precision=3, suppress=True)
 
 from vehicle_core.model import vehicle_model as vm
 from vehicle_core.model import dynamic_model as dm
+from vehicle_core.util import conversions as cnv
 
 # controller modes
 MODE_POSITION = 0
@@ -51,14 +52,6 @@ MODE_VELOCITY = 1
 MODE_STATION = 2
 
 MAX_PITCH = np.deg2rad(60)  # max pitch (rad)
-
-
-# utils
-def wrap_pi(angle):
-    return ((angle + np.pi) % (2 * np.pi)) - np.pi
-
-#def wrap_2pi(angle):
-#    return ((angle + np.pi) % (2*np.pi))
 
 
 class VehicleController(object):
@@ -273,7 +266,7 @@ class CascadedController(VehicleController):
         self.err_pos = np.dot(self.J_inv, self.err_pos.reshape((6, 1))).flatten()
 
         # wrap angles and limit pitch
-        self.err_pos[3:6] = wrap_pi(self.err_pos[3:6])
+        self.err_pos[3:6] = cnv.wrap_pi(self.err_pos[3:6])
         self.err_pos[4] = np.clip(self.err_pos[4], -MAX_PITCH, MAX_PITCH)
 
         # update errors
@@ -451,7 +444,7 @@ class AutoTuningController(CascadedController):
         self.err_pos = np.dot(self.J_inv, self.err_pos.reshape(-1, 1)).flatten()
 
         # wrap angles and limit pitch
-        self.err_pos[3:6] = wrap_pi(self.err_pos[3:6])
+        self.err_pos[3:6] = cnv.wrap_pi(self.err_pos[3:6])
         self.err_pos[4] = np.clip(self.err_pos[4], -MAX_PITCH, MAX_PITCH)
 
 
