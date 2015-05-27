@@ -4,7 +4,9 @@ from __future__ import division
 
 import sys
 import argparse
+
 import numpy as np
+
 np.set_printoptions(precision=3, suppress=True)
 
 from numpy import cos, sin
@@ -12,7 +14,7 @@ from numpy import cos, sin
 # fix imports
 sys.path.append('../src')
 
-from vehicle_core.util import trajectory_tools as tt
+from vehicle_core.path import trajectory_tools as tt
 
 
 # constants

@@ -47,7 +47,7 @@ from __future__ import division
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
-from vehicle_core.util import trajectory_tools as tt
+from vehicle_core.path import trajectory_tools as tt
 
 
 def circular_pattern(center, radius=5.0, orientation=None, delta_ip=5.0):

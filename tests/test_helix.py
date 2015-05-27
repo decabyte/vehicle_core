@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 
+import sys
+
 import numpy as np
+import matplotlib.pyplot as plt
+
 np.set_printoptions(precision=3, suppress=True)
 
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+sys.path.append('../src')
 
+from vehicle_core.path import trajectory_tools as tt
 
-from vehicle_core.util import trajectory_tools as tt
 
 def main():
     # parameters

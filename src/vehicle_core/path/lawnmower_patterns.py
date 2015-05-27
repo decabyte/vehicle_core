@@ -46,9 +46,8 @@ from __future__ import division
 
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
-from numpy import cos, sin
 
-import trajectory_tools as tg
+from vehicle_core.path import trajectory_tools as tt
 
 
 def pattern_from_rect(width, height, delta=0.0, start=0):
@@ -206,8 +205,8 @@ def pattern_from_ned(area, start=0, spacing=2.0, overlap=0.0):
 
     # set the rotation using current attitude
     ROT[0:2, 0:2] = [
-        [cos(alpha),    sin(alpha)],
-        [-sin(alpha),   cos(alpha)]
+        [np.cos(alpha),    np.sin(alpha)],
+        [-np.sin(alpha),   np.cos(alpha)]
     ]
 
     for n in range(fixes.shape[0]):
@@ -252,7 +251,7 @@ if __name__ == '__main__':
     #(fixes_d, n_cols) = pattern_from_ned(area, start=3, spacing=sonar_field, overlap=sonar_overlap)
     #print(fixes_d)
 
-    tg.plot_trajectory(fixes_a)
+    tt.plot_trajectory(fixes_a)
     plt.show()
 
     import json

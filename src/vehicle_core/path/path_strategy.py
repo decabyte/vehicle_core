@@ -39,14 +39,13 @@
 
 from __future__ import division
 
-import time
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
 import scipy as sci
 import scipy.interpolate
 
-from vehicle_core.util import trajectory_tools as tt
+from vehicle_core.path import trajectory_tools as tt
 
 
 # default config
