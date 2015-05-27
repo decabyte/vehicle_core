@@ -1,0 +1,16 @@
+<launch>
+
+    <!-- default args -->
+    <arg name="use_gui" default="False" />
+
+    <!-- includes -->
+    <include file="$(find vehicle_core)/launch/nav_sim.launch"/>
+    <include file="$(find vehicle_core)/launch/pilot_sim.launch"/>
+    <include file="$(find vehicle_core)/launch/path_controller.launch"/>
+
+    <!-- rviz -->
+    <group if="$(arg use_gui)">
+        <include file="$(find vehicle_core)/launch/nav_visual.launch"/>
+    </group>
+
+</launch>

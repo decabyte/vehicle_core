@@ -55,20 +55,22 @@ from diagnostic_msgs.msg import KeyValue
 from visualization_msgs.msg import Marker, MarkerArray
 
 from auv_msgs.msg import NavSts
-from vehicle_interface.msg import PathStatus, PilotRequest
+from vehicle_interface.msg import PilotRequest, PathRequest, PathStatus
 from vehicle_interface.srv import PathService, PathServiceResponse, BooleanService
 
 
 # constants
 TOPIC_NAV = 'nav/nav_sts'
-TOPIC_POS_REQ = 'pilot/position_req'
 TOPIC_PILOT = 'pilot/status'
+TOPIC_POS_REQ = 'pilot/position_req'
+TOPIC_VEL_REQ = 'pilot/velocity_req'
+
+TOPIC_REQ = 'path/request'
+TOPIC_STATUS = 'path/status'
+TOPIC_VIS = 'path/markers'
 
 SRV_CONTROLLER = 'pilot/switch'
 SRV_PATH_CONTROL = 'path/control'
-
-TOPIC_STATUS = 'path/status'
-TOPIC_VIS = 'path/markers'
 
 
 # node states
@@ -112,7 +114,8 @@ HOVER_TIMEOUT = 60      # sec
 
 
 class PathController(object):
-    def __init__(self, name, visualization=False):
+
+    def __init__(self, name, **kwargs):
         self.name = name
 
         # state
@@ -149,15 +152,27 @@ class PathController(object):
             S_RUNNING:  self.running
         }
 
+        self.act_on_command = {
+            'start': self.cmd_start,
+            'pause': self.cmd_hover,
+            'reset': self.cmd_reset,
+            'path': self.cmd_path
+        }
+
         # ros interface
+        self.sub_req = rospy.Subscriber(TOPIC_REQ, PathRequest, self.handle_request, queue_size=1)
+        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.update_nav, queue_size=1)
         self.pub_path_status = rospy.Publisher(TOPIC_STATUS, PathStatus, queue_size=1)
         self.pub_pos_req = rospy.Publisher(TOPIC_POS_REQ, PilotRequest, queue_size=1)
-        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.update_nav, queue_size=1)
+
+        # status related
         # self.sub_pilot = rospy.Subscriber(TOPIC_PILOT, PilotStatus, self.update_error, queue_size=1)
 
+        # user related
         self.visualization = True
         self.pub_vis = rospy.Publisher(TOPIC_VIS, MarkerArray, queue_size=1, latch=True)
 
+        # services
         self.srv_controller = rospy.ServiceProxy(SRV_CONTROLLER, BooleanService)
         self.srv_path = rospy.Service(SRV_PATH_CONTROL, PathService, self.handle_path_srv)
 
@@ -228,6 +243,35 @@ class PathController(object):
             #rospy.logdebug('%s position request: %s', self.name, self.des_pos)
 
 
+    def handle_request(self, request):
+        packed_request = {
+            'command':  request.command,
+            'points':   request.points
+        }
+
+        for option in request.options:
+            packed_request[option.key] = option.value
+
+        try:
+            cmd = packed_request['command']
+
+            if cmd == '' or cmd == None:
+                rospy.logwarn('%s path request without command, assuming new path request', self.name)
+                cmd = 'path'
+
+            res = self.act_on_command[cmd](**packed_request)
+
+            if res.get('path_id', None) != None:
+                rospy.loginfo('%s starting path from request with id: %s', self.name, res['path_id'])
+
+                # autostart the new path
+                self.cmd_start()
+
+        except Exception:
+            tb = traceback.format_exc()
+            rospy.logerr('%s error in processing topic request:\n%s', self.name, tb)
+
+
     def handle_path_srv(self, request):
         packed_request = {
             'command':  request.command,
@@ -237,20 +281,13 @@ class PathController(object):
         for option in request.options:
             packed_request[option.key] = option.value
 
-        act_on_command = {
-            'start': self.cmd_start,
-            'pause': self.cmd_hover,
-            'reset': self.cmd_reset,
-            'path': self.cmd_path
-        }
-
         info = {}
         res = PathServiceResponse()
         res.result = True
 
         try:
             cmd = packed_request['command']
-            response = act_on_command[cmd](**packed_request)
+            response = self.act_on_command[cmd](**packed_request)
             info.update(response)
         except Exception:
             info['error'] = 'unspecified command'
@@ -332,8 +369,9 @@ class PathController(object):
 
     def cmd_path(self, mode=None, points=None, **kwargs):
         if mode is None:
-            rospy.logerr('%s mode not specified', self.name)
-            return {'error': 'mode not specified'}
+            mode = PATH_LINES
+            rospy.logwarn('%s mode not specified, defaulting to %s', self.name, mode)
+            #return {'error': 'mode not specified'}
 
         if points is None:
             rospy.logerr('%s no points specified', self.name)
@@ -349,7 +387,7 @@ class PathController(object):
         self.path_timeout = float(kwargs.get('timeout', -1))
 
         if self.path_timeout < 0:
-            rospy.loginfo('%s path without a timeout', self.name)
+            rospy.logwarn('%s path requested without timeout', self.name)
 
         generate_path = {
             PATH_SIMPLE: ps.SimpleStrategy,

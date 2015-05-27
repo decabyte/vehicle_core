@@ -115,6 +115,23 @@ SRV_SPEED_LIM = 'pilot/speeds'                  # updates the controller speed l
 SRV_FAULT_CTRL = 'pilot/fault_control'          # enable/disable the adaptive fault control
 #TOPIC_METRIC = 'thrusters/diagnostics'         # read the diagnostic metric (if any)
 
+# console output
+CONSOLE_STATUS = """pilot:
+  pos: %s
+  vel: %s
+  des_p: %s
+  des_v: %s
+  lim_vu: %s
+  lim_vc: %s
+  tau_c: %s
+  tau_u: %s
+  tau: %s
+  for: %s
+  for_s: %s
+  thl: %s
+  eff: %s
+  dis: %s
+"""
 
 # TODO: add a counter to user requests in order to avoid remembering very old requests for a long time
 # TODO: if no requests are sent within a given timeout just disable the low-level controller and float!
@@ -680,22 +697,7 @@ class VehiclePilot(object):
 
 
     def __str__(self):
-        return """pilot:
-          pos: %s
-          vel: %s
-          des_p: %s
-          des_v: %s
-          lim_vu: %s
-          lim_vc: %s
-          tau_c: %s
-          tau_u: %s
-          tau: %s
-          for: %s
-          for_s: %s
-          thl: %s
-          eff: %s
-          dis: %s
-        """ % (
+        return CONSOLE_STATUS % (
             self.pos, self.vel, self.des_pos, self.des_vel,
             self.lim_vel_user, self.lim_vel_ctrl,
             self.tau_ctrl, self.tau_user, self.tau_total,

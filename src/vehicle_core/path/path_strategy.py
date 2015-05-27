@@ -46,6 +46,7 @@ import scipy as sci
 import scipy.interpolate
 
 from vehicle_core.path import trajectory_tools as tt
+from vehicle_core.util import conversions as cnv
 
 
 # default config
@@ -83,7 +84,7 @@ class PathStrategy(object):
         #   - (safety) wrap angle
         self.points = np.concatenate((position.reshape(1, 6), points), axis=0)
         self.points = tt.remove_repeated_points(self.points)
-        self.points[:, 3:6] = tt.wrap_angle(self.points[:, 3:6])
+        self.points[:, 3:6] = cnv.wrap_pi(self.points[:, 3:6])
 
         # calculate distances
         self.cum_distances = tt.cumulative_distance(self.points, spacing_dim=3)
@@ -126,7 +127,7 @@ class PathStrategy(object):
 
     def calculate_position_error(self, current_position, desired_position):
         error = current_position - desired_position
-        error[3:6] = tt.wrap_angle(error[3:6])
+        error[3:6] = cnv.wrap_pi(error[3:6])
         return error
 
     def update(self, position, velocity):
@@ -308,79 +309,3 @@ class FastTimeStrategy(PathStrategy):
             self.cnt = np.maximum(np.argwhere(self.t_interp > self.t)[0], self.cnt)
         except:
             self.cnt = len(self.points) - 1
-
-
-# class FastLineStrategy(PathStrategy):
-#     """FastLineStrategy is trying to achieve the same results for FastTimeStrategy using the concept of distance travelled
-#     along the requested trajectory instead of use time to move the requested point in front of the vehicle.
-#
-#     WARNING: This may be removed in the future and it use is deprecated.
-#     """
-#
-#     def __init__(self, points, position, **kwargs):
-#         super(FastLineStrategy, self).__init__(points, position, **kwargs)
-#
-#         self.position_interpolation = [
-#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 0], kind='linear'),
-#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 1], kind='linear'),
-#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 2], kind='linear'),
-#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 3], kind='linear'),
-#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 4], kind='linear'),
-#             sci.interpolate.interp1d(self.cum_distances, self.points[:, 5], kind='linear')
-#         ]
-#
-#         self.look_ahead = kwargs.get('look_ahead', FL_LOOK_AHEAD)
-#         self.look_ahead_requested = self.look_ahead
-#         self.tolerances = FL_TOLERANCES
-#
-#
-#     def generate_position_ahead(self, position, distance):
-#         position_ahead = np.zeros(6)
-#         distance = np.clip(distance, 0, self.cum_distances[-1])
-#         # if distance ahead is greater than the length of the path go to the end of the path
-#
-#         position_ahead[0] = self.position_interpolation[0](distance)
-#         position_ahead[1] = self.position_interpolation[1](distance)
-#         position_ahead[2] = self.position_interpolation[2](distance)
-#         position_ahead[3:5] = 0
-#         position_ahead[5] = tt.calculate_orientation(position, position_ahead)
-#
-#         return position_ahead
-#
-#     def update(self, position, velocity):
-#
-#         if self.cnt >= len(self.points):
-#             self.des_pos = self.points[-1]
-#             return
-#
-#         # calculate the position error towards current waypoint
-#         previous_error = self.calculate_position_error(position, self.des_pos)
-#
-#         distance = self.distance_completed(position)
-#         distance_ahead = distance + self.look_ahead
-#         distance_control = distance + self.look_ahead / 2.0
-#
-#         # update requested position using the look-ahead parameter
-#         self.des_pos = self.generate_position_ahead(position, distance_ahead)
-#
-#         if distance_control >= self.cum_distances[self.cnt]:
-#             self.cnt += 1
-#
-#             # adaptive look-ahead (prevent drifting by gradually reducing the look-ahead)
-#             if not np.all(np.abs(previous_error) < self.tolerances):
-#                 self.look_ahead -= 1
-#             else:
-#                 self.look_ahead += 1
-#
-#             #print('updated look-ahead: %s' % self.look_ahead)
-#             #print('last error: %s' % np.abs(previous_error))
-#             self.look_ahead = np.clip(self.look_ahead, FL_LOOK_AHEAD_MIN, self.look_ahead_requested)
-#
-#             # check for end of path
-#             if self.cnt < len(self.points):
-#                 #print('WP reached')
-#                 pass
-#             else:
-#                 self.path_completed = True
-#                 self.des_pos = self.points[-1]
-#                 #print('Path completed')
