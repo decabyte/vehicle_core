@@ -98,6 +98,17 @@ FRAME_CHILD = 'base_link'
 MAX_ABOVE_SEA_LEVEL = -0.15
 MAX_PITCH = 1.570
 
+# console log
+CONSOLE_STATUS = """nav_sim:
+  tau:   %s
+  F_net: %s
+  acc:   %s
+  vel:   %s
+  pos:   %s %s
+  off_pos: %s %s
+  altitude: %s
+"""
+
 
 class NavigationSimulator(object):
     """NavigationSimulator is part of the navigation_simulator module. it provides interfacing with the ROS system.
@@ -124,6 +135,12 @@ class NavigationSimulator(object):
         self.model_config = rospy.get_param('sim/model', dict())
         self.model = vm.VehicleModel(self.model_config)
 
+        # velocity vectors used in the navigation simulator
+        #   vel_model is used for the combined velocity of vehicle and water current in the vehicle model equations
+        #   vel_water is used for the water current velocity (at vehicle depth)
+        self.vel_model = np.zeros(6, dtype=np.float64)
+        self.vel_water = np.zeros(6, dtype=np.float64)
+
         # state of the vehicle (body frame referenced if not specified)
         #   x axis is along the vehicle, y axis is to the right of the vehicle, z axis is downward oriented
         #
@@ -138,6 +155,11 @@ class NavigationSimulator(object):
 
         # nav offset
         self.offset_pos = np.zeros(6, dtype=np.float64)
+
+        # water current
+        self.water_a = 0.0              # angle of attack (radians)
+        self.water_b = 0.0              # angle of attack (radians)
+        self.water_surf = 0.0           # surface speed of water current
 
         # initial conditions
         self.pos = initial_position
@@ -329,10 +351,43 @@ class NavigationSimulator(object):
     #     self.pub_force.publish(ws)
 
 
+    def update_water_currents(self):
+        """This updates the vel_model variable used for the dynamic model equations based on the current state.
+
+        First the velocity of the water current is calculated based on vehicle position, direction of the currents and
+        the sea state. Later the water current velocity is added to the actual vehicle velocity.
+        """
+        Cya = np.eye(3)
+        Czb = np.eye(3)
+
+        Cya[0, 0] = np.cos(self.water_a)
+        Cya[0, 2] = -np.sin(self.water_a)
+        Cya[2, 0] = -np.sin(self.water_a)
+        Cya[2, 2] = np.cos(self.water_a)
+
+        Czb[0, 0] = np.cos(-self.water_b)
+        Czb[0, 1] = np.sin(-self.water_b)
+        Czb[1, 0] = -np.sin(-self.water_b)
+        Czb[1, 1] = np.cos(-self.water_b)
+
+        # calculate the water velocity
+        vc = np.array([self.water_surf, 0, 0])
+
+        # calculate the velocity vector
+        self.water_ef = np.dot(Cya, np.dot(Czb, vc.reshape(-1, 1)))
+        self.vel_water = np.dot(self.J_inv[0:3, 0:3], self.water_ef).flatten()
+
+        self.vel_model[0:5] = self.vel[0:5]     # copy the values in the vel_model
+        self.vel_model[0:3] += self.vel_water   # add water currents
+
+
     def int_naive(self):
         """naive integration"""
+        # take into account the water currents
+        self.update_water_currents()
+
         # calculate acceleration from forces using the dynamic model
-        self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel)
+        self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel_model)
 
         # integration of velocity and convert to earth-fixed reference
         self.vel = self.vel + (self.acc * self.dt)
@@ -351,8 +406,11 @@ class NavigationSimulator(object):
             [1]: http://en.wikipedia.org/wiki/Verlet_integration
             [2]: http://research.ncl.ac.uk/game/mastersdegree/gametechnologies/physicsnumericalintegration/Physics%20Tutorial%202%20-%20Numerical%20Integration.pdf
         """
+        # take into account the water currents
+        self.update_water_currents()
+
         # calculate acceleration from forces using the dynamic model
-        acc_prev = self.model.update_acceleration(self.tau, self.pos, self.vel)
+        acc_prev = self.model.update_acceleration(self.tau, self.pos, self.vel_model)
 
         # convert velocity to earth-fixed reference
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
@@ -443,15 +501,7 @@ class NavigationSimulator(object):
 
 
     def __str__(self):
-        return """nav_sim:
-          tau:   %s
-          F_net: %s
-          acc:   %s
-          vel:   %s
-          pos:   %s %s
-          off_pos: %s %s
-          altitude: %s
-        """ % (
+        return CONSOLE_STATUS % (
             self.tau, self.model.F_net,
             self.acc, self.vel,
             self.pos[0:3], np.rad2deg(self.pos[3:6]),
