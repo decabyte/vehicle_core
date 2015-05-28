@@ -713,24 +713,25 @@ def main():
 
     # parse args
     #   ros_args[0] is always the program name
-    ros_args = rospy.myargv()
-
-    parser = argparse.ArgumentParser(
-        description='Vehicle Pilot ROS Node. This node is the sending commands to the thrusters driver.',
-        epilog='This is part of vehicle_pilot module.'
-    )
-    parser.add_argument('-v', '--verbose', action='store_true', help='Print detailed information.')
-    args = parser.parse_args(ros_args[1:])
-
-    if args.verbose:
-        verbose = True
-    else:
-        verbose = False
+    #ros_args = rospy.myargv()
+    #
+    # parser = argparse.ArgumentParser(
+    #     description='Vehicle Pilot ROS Node. This node is the sending commands to the thrusters driver.',
+    #     epilog='This is part of vehicle_pilot module.'
+    # )
+    # parser.add_argument('-v', '--verbose', action='store_true', help='Print detailed information.')
+    # args = parser.parse_args(ros_args[1:])
+    #
+    # if args.verbose:
+    #     verbose = True
+    # else:
+    #     verbose = False
 
     # load global parameters
     rate = int(rospy.get_param('~pilot_rate', DEFAULT_RATE))
     lim = int(rospy.get_param('thrusters/throttle_limit', tc.MAX_THROTTLE))
     topic_output = rospy.get_param('~topic_output', TOPIC_CMD)
+    verbose = bool(rospy.get_param('~verbose', False))
 
     rate = int(np.clip(rate, 1, 100).astype(int))
     lim = int(np.clip(lim, 0, 100).astype(int))

@@ -1,7 +1,7 @@
 <launch>
 
     <!-- default args -->
-    <arg name="verbose" default="-v" />
+    <arg name="verbose" default="true" />
     <arg name="topic_output" default="thrusters/commands" />
 
     <!-- load the simulation config -->
@@ -35,9 +35,10 @@
 
 
     <!-- start the vehicle controller -->
-    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" args="$(arg verbose)" output="screen">
+    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" output="screen">
         <!-- redirect output -->
         <param name="topic_output" value="$(arg topic_output)"/>
+        <param name="verbose" value="$(arg verbose)" type="bool"/>
     </node>
 
 </launch>

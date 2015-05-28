@@ -1,13 +1,13 @@
 <launch>
 
     <!-- default args -->
-    <arg name="verbose" default="" />
+    <arg name="verbose" default="false" />
 
     <!-- use Nessie AUV throttle limit -->
     <param name="thrusters/throttle_limit" value="85"/>
 
     <!-- load the simulation config -->
-    <rosparam command="load" file="$(find vehicle_core)/conf/nav_config.yaml"/>
+    <rosparam command="load" file="$(find vehicle_core)/conf/simulation_nav.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/thruster_model.yaml"/>
 
@@ -22,15 +22,12 @@
     </node>
 
     <!-- start the navigation simulator -->
-    <node name="nav_sim" pkg="vehicle_core" type="node_nav_sim.py" args="$(arg verbose)" output="screen">
+    <node name="nav_sim" pkg="vehicle_core" type="node_nav_sim.py" output="screen">
         <!-- sim_rate: publish rate of nav messages (default: 20 Hz) -->
         <param name="sim_rate" value="20"/>
         <param name="pub_rate" value="10"/>
 
-        <!-- set initial position -->
-        <param name="pose_x" value="0" type="int"/>
-        <param name="pose_y" value="0" type="int"/>
-        <param name="pose_z" value="0" type="int"/>
+        <param name="verbose" value="$(arg verbose)" type="bool"/>
 
         <!-- odometry configuration (defaults are used for single vehicle operations) -->
         <param name="topic_odom" value="nav/odometry"/>

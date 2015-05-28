@@ -2,10 +2,18 @@
 
     <!-- default args -->
     <arg name="use_gui" default="False" />
+    <arg name="nav_verbose" default="False" />
+    <arg name="pilot_verbose" default="False" />
 
     <!-- includes -->
-    <include file="$(find vehicle_core)/launch/nav_sim.launch"/>
-    <include file="$(find vehicle_core)/launch/pilot_sim.launch"/>
+    <include file="$(find vehicle_core)/launch/nav_sim.launch">
+        <arg name="verbose" value="$(arg nav_verbose)"/>
+    </include>
+
+    <include file="$(find vehicle_core)/launch/pilot_sim.launch">
+        <arg name="verbose" value="$(arg pilot_verbose)"/>
+    </include>
+
     <include file="$(find vehicle_core)/launch/path_controller.launch"/>
 
     <!-- rviz -->

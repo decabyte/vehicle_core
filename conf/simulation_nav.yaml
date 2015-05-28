@@ -1,0 +1,19 @@
+# simulated nav configuration file -- FOR USE WITH SIMULATED VEHICLE ONLY
+#
+# this file contains the major parameters of the vehicle's nav simulator. Values and vectors conventions are taken from
+# "Guidance and Control of Oceanic Vehicle".
+#
+# Make sure you understand the basic components before changing these values, you have been warned!
+
+sim:
+    nav:
+        # initial position
+        pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]     # position vector (x, y, z, k, m, n)
+
+        # water currents
+        water_a: 0.0            # radians
+        water_b: 0.0            # radians
+        water_surf: 0.0         # m/s
+
+        water_mu: 0.0           # mean value (m/s)  --  this can be equals to zero
+        water_sigma: 0.001      # variance (m/s)    --  this should be different than zero
