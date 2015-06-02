@@ -264,8 +264,6 @@ def interpolate_trajectory(points, spacing=10, spacing_dim=2, face_goal=False, *
     The vehicle first rotates towards the next point. Then advances towards it in xyz. Then adjusts the final
     orientation.
 
-    !It is possible that points are repeated.
-
     :param position: first point of the trajectory (optional)
     :param spacing: describes the spacing in xy or xyz between the consecutive points
     :param spacing_dim: describes whether the above spacing is in xy (2) or xyz (3)
@@ -280,6 +278,9 @@ def interpolate_trajectory(points, spacing=10, spacing_dim=2, face_goal=False, *
     for i in xrange(1, len(points)):
         interpolation = interpolate_leg(points[i-1], points[i], spacing, spacing_dim, face_goal)[1:]
         trajectory = np.concatenate((trajectory, interpolation), axis=0)
+    
+    if face_goal:
+        trajectory = remove_repeated_points(trajectory)
 
     return trajectory
 
