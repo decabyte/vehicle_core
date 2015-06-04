@@ -57,7 +57,6 @@ roslib.load_manifest('vehicle_core')
 
 from auv_msgs.msg import NavSts
 from std_srvs.srv import Empty
-from diagnostic_msgs.msg import KeyValue
 
 from vehicle_interface.msg import ThrusterCommand, PilotStatus, PilotRequest, Vector6Stamped, FloatArrayStamped, Vector6, Vector6ArrayStamped
 from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatService, FloatServiceResponse
@@ -66,7 +65,7 @@ from vehicle_interface.srv import BooleanService, BooleanServiceResponse, FloatS
 # general config
 DEFAULT_RATE = 10.0                                     # pilot loop rate (Hz)
 STATUS_RATE = 2.0                                       # pilot report rate (Hz)
-TIME_VERBOSE = 0.5                                      # console logging (sec)
+TIME_REPORT = 0.5                                      # console logging (sec)
 
 # default config
 #   this values can be overridden using external configuration files
@@ -89,24 +88,23 @@ STATUS_MODE = {
     vc.MODE_STATION: PilotStatus.MODE_STATION
 }
 
-
 # ros topics
 TOPIC_NAV = 'nav/nav_sts'
+TOPIC_USER = 'user/forces'
 TOPIC_CMD = 'thrusters/commands'
 TOPIC_STATUS = 'pilot/status'
 TOPIC_FORCES = 'pilot/forces'
+TOPIC_GAINS = 'controller/gains'
 
 TOPIC_POS_REQ = 'pilot/position_req'
 TOPIC_BODY_REQ = 'pilot/body_req'
 TOPIC_VEL_REQ = 'pilot/velocity_req'
 TOPIC_STAY_REQ = 'pilot/stay_req'
 
-TOPIC_USER = 'user/forces'
 SRV_SWITCH = 'pilot/switch'
 SRV_RELOAD = 'pilot/reload'
 SRV_DIS_AXIS = 'pilot/disable_axis'
 SRV_THRUSTERS = 'thrusters/switch'
-TOPIC_GAINS = 'controller/gains'
 
 # adaptive fault control
 TOPIC_EFF = 'thrusters/efficiency'              # updates the efficiencies used in the thrust allocation solution
@@ -114,6 +112,14 @@ TOPIC_SPD = 'pilot/speeds'                      # updates the controller speed l
 SRV_SPEED_LIM = 'pilot/speeds'                  # updates the controller speed limits (reduce saturation, srv call)
 SRV_FAULT_CTRL = 'pilot/fault_control'          # enable/disable the adaptive fault control
 #TOPIC_METRIC = 'thrusters/diagnostics'         # read the diagnostic metric (if any)
+
+# optimal allocation (enabled only if available on the platform)
+try:
+    from vehicle_core.control import optimal_thrust
+    ALLOCATION_AVAILABLE = True
+except ImportError:
+    ALLOCATION_AVAILABLE = False
+
 
 # console output
 CONSOLE_STATUS = """pilot:
@@ -174,6 +180,15 @@ class VehiclePilot(object):
         self.local_inv_TAM = np.copy(tc.inv_TAM)                # inverse of thrust allocation matrix
         self.thruster_efficiency = np.ones(tc.TAM.shape[1])     # thrusters efficiency (0 faulty to 1 healthy)
 
+        # optimal allocator
+        self.opt_alloc = None
+
+        if ALLOCATION_AVAILABLE:
+            rospy.logwarn('%s: optimal allocation available ...', self.name)
+        else:
+            rospy.logwarn('%s: optimal allocation not available ...', self.name)
+
+        # pilot state
         self.pos = np.zeros(6)
         self.vel = np.zeros(6)
         self.des_pos = np.zeros(6)
@@ -197,6 +212,7 @@ class VehiclePilot(object):
         self.tau_user = np.zeros(6, dtype=np.float64)
         self.tau_total = np.zeros(6, dtype=np.float64)
         self.forces = np.zeros(6, dtype=np.float64)
+        self.forces_sat = np.zeros(6, dtype=np.float64)
         self.tau_tam = np.zeros(6, dtype=np.float64)
         self.throttle = np.zeros(6, dtype=np.float64)
 
@@ -210,8 +226,10 @@ class VehiclePilot(object):
         self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.handle_nav, tcp_nodelay=True, queue_size=1)
         self.sub_user = rospy.Subscriber(TOPIC_USER, Vector6Stamped, self.handle_user, tcp_nodelay=True, queue_size=1)
         self.pub_status = rospy.Publisher(TOPIC_STATUS, PilotStatus, tcp_nodelay=True, queue_size=1)
-        self.pub_forces = rospy.Publisher(TOPIC_FORCES, Vector6Stamped, tcp_nodelay=True, queue_size=1)
         self.pub_thr = rospy.Publisher(self.topic_output, ThrusterCommand, tcp_nodelay=True, queue_size=1)
+
+        self.pub_forces = rospy.Publisher(TOPIC_FORCES, Vector6Stamped, tcp_nodelay=True, queue_size=1)
+        self.pub_gains = rospy.Publisher(TOPIC_GAINS, Vector6ArrayStamped, tcp_nodelay=True, queue_size=1)
 
         # pilot requests
         self.sub_pos_req = rospy.Subscriber(TOPIC_POS_REQ, PilotRequest, self.handle_pos_req, tcp_nodelay=True, queue_size=1)
@@ -233,13 +251,9 @@ class VehiclePilot(object):
         self.sub_spd = rospy.Subscriber(TOPIC_SPD, FloatArrayStamped, self.handle_speeds)
         self.s_fault_ctrl = rospy.Service(SRV_FAULT_CTRL, BooleanService, self.srv_fault_ctrl)
 
-        # gains
-        self.pub_gains = rospy.Publisher(TOPIC_GAINS, Vector6ArrayStamped, tcp_nodelay=True, queue_size=1)
-
         # optional info
         if self.verbose:
-            t_pri = rospy.Timer(rospy.Duration(TIME_VERBOSE), self.print_info)
-
+            self.t_report = rospy.Timer(rospy.Duration(TIME_REPORT), self.report_status)
 
 
     def reload_config(self, user_config=None):
@@ -272,6 +286,18 @@ class VehiclePilot(object):
 
         # fault tolerant control
         self.fault_control = bool(pilot_config.get('fault_control', False))
+
+        # optimal allocation
+        self.optimal_allocation = bool(pilot_config.get('optimal_allocation', ALLOCATION_AVAILABLE))
+
+        if self.optimal_allocation and ALLOCATION_AVAILABLE:
+            # instantiate the optimal allocator
+            self.opt_alloc = optimal_thrust.OptimalThrustAllocator(self.local_TAM)
+            rospy.loginfo('%s: optimal allocation enabled ...', self.name)
+        else:
+            # disable allocator if previously enabled
+            self.opt_alloc = None
+            rospy.loginfo('%s: optimal allocation disabled ...', self.name)
 
         # high speed and low speed manoeuvring range
         self.thres_fast_speed = np.clip( float(pilot_config.get('threshold_fast', 1.0)), 0.50, 2.00 )
@@ -553,7 +579,7 @@ class VehiclePilot(object):
         if self.ctrl_type == 'autotuning':
             self.send_gains()
 
-    # added for the autotuning controller test
+
     def send_gains(self, event=None):
         if self.ctrl_type != 'autotuning':
             return
@@ -615,7 +641,7 @@ class VehiclePilot(object):
         #self.u_total = np.clip(self.u_total, -tc.MAX_U, tc.MAX_U)
 
         # thruster efficiency for current speed
-        local_efficiency = np.copy(self.thruster_efficiency)
+        local_efficiency = self.thruster_efficiency
 
         # assign a different cost to lateral thrusters depending on forward speed
         #   thruster allocation algorithm will reduce the use of lateral thrusters for yawing at high speeds
@@ -625,23 +651,33 @@ class VehiclePilot(object):
             alpha = np.clip(alpha, 0, 1)
 
             # efficiency is 0 at high speeds and 1 at low speeds
+            local_efficiency = np.copy(self.thruster_efficiency)
             local_efficiency[2:4] = 1 - alpha
 
 
-        # update the inverse thruster allocation matrix based on current thruster efficiency
-        self.local_inv_TAM = ta.tam_weighted_inverse(self.local_TAM, local_efficiency)
-        self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
-        self.available_forces = np.clip(self.available_forces, 0.0, tc.MAX_U)
+        # thrust allocation
+        if self.opt_alloc is None:
+            # update the inverse thruster allocation matrix based on current thruster efficiency
+            self.local_inv_TAM = ta.tam_weighted_inverse(self.local_TAM, local_efficiency)
+            self.available_forces = ta.evaluate_max_force(self.local_inv_TAM)
+            self.available_forces = np.clip(self.available_forces, 0.0, tc.MAX_U)
 
-        # convert force to thrust using the local copy of the TAM
-        self.forces = np.dot( self.local_inv_TAM, self.tau_total )
+            # convert force to thrust using the local copy of the TAM
+            self.forces = np.dot( self.local_inv_TAM, self.tau_total )
 
-        # allocate thrusters preventing saturation and prioritizing axes (yaw, sway, surge)
-        #   otherwise use the naive approach (see thrust_allocation.py)
-        if self.prioritize_axis:
-            self.forces_sat = ta.priority_allocation(self.tau_total, self.local_inv_TAM)
+            # allocate thrusters preventing saturation and prioritizing axes (yaw, sway, surge)
+            #   otherwise use the naive approach (see thrust_allocation.py)
+            if self.prioritize_axis:
+                self.forces_sat = ta.priority_allocation(self.tau_total, self.local_inv_TAM)
+            else:
+                self.forces_sat = ta.saturation_allocation(self.tau_total, self.local_inv_TAM)
         else:
-            self.forces_sat = ta.saturation_allocation(self.tau_total, self.local_inv_TAM)
+            # estimate force availability
+            force_avail = self.thruster_efficiency * tc.MAX_FORCE
+
+            # use the optimal allocator
+            self.forces_sat = self.opt_alloc.allocate_thrust(self.tau_total, force_avail)
+
 
         # use inverse thruster model to compensate non linear effects
         self.throttle = tm.estimate_throttle(self.forces_sat, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)
@@ -665,7 +701,7 @@ class VehiclePilot(object):
         self.pub_forces.publish(pf)
 
 
-    def print_info(self, event=None):
+    def report_status(self, event=None):
         print(self)
 
         if self.ctrl_status == CTRL_ENABLED:
@@ -684,7 +720,6 @@ class VehiclePilot(object):
                 self.pilot_loop.sleep()
             except rospy.ROSInterruptException:
                 rospy.loginfo('%s shutdown requested ...', self.name)
-
 
         # graceful shutdown
         self.ctrl_status = CTRL_DISABLED
