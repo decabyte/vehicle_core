@@ -39,7 +39,6 @@
 
 from __future__ import division
 
-import argparse
 import traceback
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
@@ -141,6 +140,7 @@ CONSOLE_STATUS = """pilot:
 
 # TODO: add a counter to user requests in order to avoid remembering very old requests for a long time
 # TODO: if no requests are sent within a given timeout just disable the low-level controller and float!
+
 
 class VehiclePilot(object):
     """VehiclePilot class represent the ROS interface for the pilot subsystem.
@@ -344,7 +344,7 @@ class VehiclePilot(object):
         self.lim_vel_ctrl = self.max_speed
 
 
-    # safety switch service
+    # s\afety switch service
     def srv_switch(self, req):
         """This function handles the switch service.
 
@@ -673,7 +673,7 @@ class VehiclePilot(object):
                 self.forces_sat = ta.saturation_allocation(self.tau_total, self.local_inv_TAM)
         else:
             # estimate force availability
-            force_avail = self.thruster_efficiency * tc.MAX_FORCE
+            force_avail = local_efficiency * tc.MAX_FORCE
 
             # use the optimal allocator
             self.forces_sat = self.opt_alloc.allocate_thrust(self.tau_total, force_avail)

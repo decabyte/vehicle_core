@@ -173,11 +173,18 @@ class RVizInterface(object):
         self.pub_pilot.publish(msg)
 
     def send_path_req(self, goal):
+        # path info
+        mode = 'fast'
+        distance = tt.distance_between(self.pos, goal)
+
+        if distance <= 5.0:
+            mode = 'lines'
+
         # generate linear path
         wps = tt.interpolate_leg(self.pos, goal, face_goal=True, spacing=DEFAULT_SPACING, dimensions=3)
 
         # user log
-        rospy.loginfo('%s: sending path request: %s', self.name, goal)
+        rospy.loginfo('%s: sending %s path request: %s', self.name, mode, goal)
 
         # send new path
         msg = PathRequest()
@@ -185,7 +192,7 @@ class RVizInterface(object):
         msg.command = 'path'
         msg.points = [Vector6(wp) for wp in wps]
         msg.options = [
-            KeyValue('mode', 'fast')
+            KeyValue('mode', mode)
         ]
 
         self.pub_path.publish(msg)
