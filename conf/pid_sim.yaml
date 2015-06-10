@@ -1,7 +1,4 @@
 pilot:
-    # force allocation
-    optimal_allocation: true
-
     # cascaded pid parameters
     controller:
         # general options
