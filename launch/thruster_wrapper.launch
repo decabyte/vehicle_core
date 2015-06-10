@@ -2,8 +2,8 @@
     <!-- this launch file starts the vehicle_pilot and the thruster_wrapper to inject faults in a running system -->
 
     <!-- default args -->
-    <arg name="verbose" default="" />
-    <arg name="simulation" default="true" />
+    <arg name="verbose" default="false" />
+    <arg name="simulation" default="false" />
     <arg name="topic_output" default="thrusters/request" />
 
     <!-- start vehicle pilot -->

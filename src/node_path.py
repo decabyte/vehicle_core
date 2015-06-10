@@ -185,7 +185,7 @@ class PathController(object):
             self.state_machine[self.state]()
         except Exception:
             tb = traceback.format_exc()
-            rospy.logfatal('%s error during navigation, resetting path nav:\n%s', self.name, tb)
+            rospy.logfatal('%s: error during navigation, resetting path nav:\n%s', self.name, tb)
             self.cmd_reset()
 
 
@@ -213,7 +213,7 @@ class PathController(object):
 
         if self.path_timeout > 0 and self.path_timeout < self.path_time_elapsed:
             # path timeout expiration
-            rospy.loginfo('%s path timed out', self.name)
+            rospy.loginfo('%s: path timed out', self.name)
             self.path_status = P_TIMEOUT
             self.publish_path_status()
 
@@ -240,7 +240,7 @@ class PathController(object):
                 # switch to hover mode
                 self.cmd_hover(self.des_pos, timeout=hover_timeout)
 
-            #rospy.logdebug('%s position request: %s', self.name, self.des_pos)
+            #rospy.logdebug('%s: position request: %s', self.name, self.des_pos)
 
 
     def handle_request(self, request):
@@ -256,20 +256,20 @@ class PathController(object):
             cmd = packed_request['command']
 
             if cmd == '' or cmd == None:
-                rospy.logwarn('%s path request without command, assuming new path request', self.name)
+                rospy.logwarn('%s: path request without command, assuming new path request', self.name)
                 cmd = 'path'
 
             res = self.act_on_command[cmd](**packed_request)
 
             if res.get('path_id', None) != None:
-                rospy.loginfo('%s starting path from request with id: %s', self.name, res['path_id'])
+                rospy.loginfo('%s: starting path from request with id: %s', self.name, res['path_id'])
 
                 # autostart the new path
                 self.cmd_start()
 
         except Exception:
             tb = traceback.format_exc()
-            rospy.logerr('%s error in processing topic request:\n%s', self.name, tb)
+            rospy.logerr('%s: error in processing topic request:\n%s', self.name, tb)
 
 
     def handle_path_srv(self, request):
@@ -293,7 +293,7 @@ class PathController(object):
             info['error'] = 'unspecified command'
 
             tb = traceback.format_exc()
-            rospy.logerr('%s error in processing service request:\n%s', self.name, tb)
+            rospy.logerr('%s: error in processing service request:\n%s', self.name, tb)
 
         if 'error' in info.keys():
             res.result = False
@@ -307,7 +307,7 @@ class PathController(object):
     def cmd_start(self, **kwargs):
         try:
             response = self.srv_controller.call(True)
-            rospy.loginfo('%s switching on controller: %s', self.name, response)
+            rospy.loginfo('%s: switching on controller: %s', self.name, response)
 
             self.state = S_RUNNING
             self.path_status = P_RUNNING
@@ -359,7 +359,7 @@ class PathController(object):
             self.publish_path_status()
 
             response = self.srv_controller.call(False)
-            rospy.loginfo('%s switching off controller: %s', self.name, response)
+            rospy.loginfo('%s: switching off controller: %s', self.name, response)
         except rospy.ServiceException:
             tb = traceback.format_exc()
             rospy.logwarn('%s: controller service error:\n%s', self.name, tb)
@@ -370,11 +370,11 @@ class PathController(object):
     def cmd_path(self, mode=None, points=None, **kwargs):
         if mode is None:
             mode = PATH_LINES
-            rospy.logwarn('%s mode not specified, defaulting to %s', self.name, mode)
+            rospy.logwarn('%s: mode not specified, defaulting to %s', self.name, mode)
             #return {'error': 'mode not specified'}
 
         if points is None:
-            rospy.logerr('%s no points specified', self.name)
+            rospy.logerr('%s: no points specified', self.name)
             return {'error': 'no points specified'}
 
         self.path_mode = mode
@@ -387,7 +387,7 @@ class PathController(object):
         self.path_timeout = float(kwargs.get('timeout', -1))
 
         if self.path_timeout < 0:
-            rospy.logwarn('%s path requested without timeout', self.name)
+            rospy.logwarn('%s: path requested without timeout', self.name)
 
         generate_path = {
             PATH_SIMPLE: ps.SimpleStrategy,
@@ -407,10 +407,10 @@ class PathController(object):
             self.path_id += 1
             self.path_time_start = rospy.Time().now().to_sec()
 
-            rospy.loginfo('%s new path accepted [%d] with timeout %s', self.name, self.path_id, self.path_timeout)
-            #rospy.loginfo('%s path to follow:\n%s', self.name, self.path_obj.points)
+            rospy.loginfo('%s: new path accepted [%d] with timeout %s', self.name, self.path_id, self.path_timeout)
+            #rospy.loginfo('%s: path to follow:\n%s', self.name, self.path_obj.points)
         except KeyValue:
-            rospy.logerr('%s unknown path mode: %s', self.name, self.path_mode)
+            rospy.logerr('%s: unknown path mode: %s', self.name, self.path_mode)
             return {'error': 'unknown path mode'}
 
         return {'path_id': str(self.path_id)}
