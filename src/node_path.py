@@ -142,6 +142,8 @@ class PathController(object):
         self.velocity = np.zeros(6)          # u, v, w, p, q, r
         self.des_pos = np.zeros(6)
         self.des_vel = np.zeros(6)
+        self.dis_axis = np.zeros(6)
+
         self.err_pos = np.zeros(6)
         self.err_vel = np.zeros(6)
 
@@ -222,7 +224,10 @@ class PathController(object):
         else:
             # default case navigation is allowed and running
             self.path_obj.update(self.position, self.velocity)
+
+            # pass the set values to the pilot
             self.des_pos = self.path_obj.des_pos
+            self.dis_axis = self.path_obj.dis_axis
 
             # send commands to pilot
             self.send_position_request()
@@ -441,6 +446,7 @@ class PathController(object):
         pr.header.stamp = rospy.Time.now()
         pr.position = self.des_pos
         #pr.velocity = self.des_vel
+        pr.disable_axis = self.dis_axis
 
         self.pub_pos_req.publish(pr)
 

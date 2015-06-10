@@ -77,6 +77,8 @@ class PathStrategy(object):
         # internal status
         self.cnt = 1                    # start always from one (default to first requested waypoint)
         self.des_pos = position         # initialize with current position
+        self.des_vel = np.ones(6)       # initialize with normalized speeds
+        self.dis_axis = np.zeros(6)     # initialize with empty disable mask
 
         # keep track of trajectory
         #   - add the current waypoint (last known position)
@@ -97,10 +99,8 @@ class PathStrategy(object):
         # path status
         self.path_completed = False
 
-
     def distance_left(self, position=None):
         return self.cum_distances[-1] - self.distance_completed(position)
-
 
     def distance_completed(self, position=None):
         """Calculate the distance along the trajectory covered so far. The distance between the last point (A)
@@ -123,7 +123,6 @@ class PathStrategy(object):
                 added_distance = np.dot(vehicle_direction, trajectory_direction) / np.linalg.norm(trajectory_direction)
 
         return self.cum_distances[self.cnt - 2] + added_distance
-
 
     def calculate_position_error(self, current_position, desired_position):
         error = current_position - desired_position
@@ -148,6 +147,9 @@ class SimpleStrategy(PathStrategy):
     def __init__(self, points, position, **kwargs):
         super(SimpleStrategy, self).__init__(points, position, **kwargs)
 
+        # set disable axis mask (simple mode is using all dofs)
+        self.dis_axis = np.zeros(6)
+
     def update(self, position, velocity):
         if self.cnt >= len(self.points):
             self.des_pos = self.points[-1]
@@ -160,12 +162,11 @@ class SimpleStrategy(PathStrategy):
             self.cnt += 1
 
             if self.cnt < len(self.points):
-                #print 'WP reached, moving to the next one'
+                # print 'WP reached, moving to the next one'
                 pass
             else:
                 self.path_completed = True
                 self.des_pos = self.points[-1]
-
 
 
 class LineStrategy(PathStrategy):
@@ -189,6 +190,8 @@ class LineStrategy(PathStrategy):
         self.cum_distances = tt.cumulative_distance(self.points, spacing_dim=3)
         self.total_distance = self.cum_distances[-1]
 
+        # set disable axis mask (lines mode is using some dofs)
+        self.dis_axis = np.zeros(6)
 
     def update(self, position, velocity):
         if self.cnt >= len(self.points):
@@ -197,10 +200,10 @@ class LineStrategy(PathStrategy):
 
         # select next waypoint
         self.des_pos = self.points[self.cnt]
+        self.dis_axis[1] = 1
 
         # calculate the error using the point in the trajectory list
         error_position = self.calculate_position_error(position, self.des_pos)
-
 
         # check if proximity condition (within two tolerances) is reached and latched:
         #   once proximity is triggered the vehicle will adjust for the final yaw
@@ -208,24 +211,23 @@ class LineStrategy(PathStrategy):
         if np.all(np.abs(error_position[0:2]) < 2 * self.tolerances[0:2]):
             self.proximity = True
 
+            # when close to the last waypoint enable full dof control
+            if self.cnt == len(self.points) - 1:
+                self.dis_axis = np.zeros(6)
+
         # if waypoint is far adjust vehicle orientation towards the next waypoint
         if not self.proximity:
             self.des_pos[5] = tt.calculate_orientation(position, self.des_pos)
-
 
         # if waypoint is reached also reset proximity flag (re-enable yaw adjustments)
         if np.all(np.abs(error_position) < self.tolerances):
             self.cnt += 1
             self.proximity = False
 
-            if self.cnt < len(self.points):
-                #print('WP reached, moving to the next one')
-                pass
-            else:
-                self.path_completed = True
+            if self.cnt >= len(self.points):
                 self.des_pos = self.points[-1]
-                #print('Path completed')
-
+                self.path_completed = True
+                # print('Path completed')
 
 
 class FastTimeStrategy(PathStrategy):
@@ -273,9 +275,15 @@ class FastTimeStrategy(PathStrategy):
             sci.interpolate.interp1d(self.t_interp, self.points[:, 5], kind=self.kind)
         ]
 
+        # set disable axis mask (fast mode is using few dofs)
+        self.dis_axis = np.zeros(6)
 
     def update(self, position, velocity):
+        # calculate the distance to the next virtual wps
         curr_error = self.calculate_position_error(position, self.des_pos)
+
+        # fast motion doesn't require all dofs
+        self.dis_axis[1] = 1
 
         # close enough to next point?
         if np.linalg.norm(curr_error[0:3]) < self.look_ahead:
@@ -299,9 +307,10 @@ class FastTimeStrategy(PathStrategy):
             waypoint_error = self.calculate_position_error(position, self.points[self.cnt, :])
 
             if np.all(np.abs(waypoint_error) < self.tolerances):
+                self.des_pos = self.points[-1]      # keep sending the last point
+                self.dis_axis = np.zeros(6)         # terminal state (use all dofs for fine approach)
                 self.path_completed = True
-                self.des_pos = self.points[-1]
-                #print('Path completed')
+                # print('Path completed')
 
         # update waypoint counter
         try:
