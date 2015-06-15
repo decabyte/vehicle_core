@@ -251,6 +251,7 @@ class NavigationSimulator(object):
         if(len(data.values) < 3):
             return
 
+        # TODO: read the mu and sigma from user otherwise set to 0 and 0.001
         self.water_surf = np.clip(data.values[0], 0.0, MAX_CURRENT)
         self.water_a = cnv.wrap_pi(data.values[1])
         self.water_b = cnv.wrap_pi(data.values[2])

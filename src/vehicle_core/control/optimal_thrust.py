@@ -98,6 +98,7 @@ class OptimalThrustAllocator(object):
         # solve the problem
         self.prob.solve(solver=cp.ECOS, abstol=1e-3, reltol=1e-3, feastol=1e-3)
 
+        # TODO: throw an exception if the solver is not working and switch back to standard allocation in pilot
         if self.prob.status != cp.OPTIMAL:
             return np.zeros_like(force_avail)
 
