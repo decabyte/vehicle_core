@@ -434,7 +434,7 @@ class NavigationSimulator(object):
         vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
 
         # integration of position (double term integrator)
-        self.pos = self.pos + (vel_efec * self.dt) + (self.acc * self.dt * self.dt)
+        self.pos = self.pos + (vel_efec * self.dt) + 0.5 * (self.acc * self.dt * self.dt)
 
 
     def int_velocity_verlet(self):
@@ -453,7 +453,7 @@ class NavigationSimulator(object):
         acc_efec = np.dot(self.J, acc_prev.reshape((6, 1))).flatten()
 
         # update position
-        self.pos = self.pos + (vel_efec * self.dt) + (acc_efec * self.dt * self.dt)
+        self.pos = self.pos + (vel_efec * self.dt) + 0.5 * (acc_efec * self.dt * self.dt)
 
         # compute the new velocity from forces using the dynamic model
         self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel)

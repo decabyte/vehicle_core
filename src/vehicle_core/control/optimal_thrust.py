@@ -47,14 +47,16 @@ import cvxpy as cp
 # default config
 MODEL_THR_FWD = np.array([0.003, 0.059, 0.059])
 MODEL_THR_REV = np.array([0.003, 0.075, 0.050])
+MODEL_DELTA = 5.0
 
 
 class OptimalThrustAllocator(object):
 
     def __init__(self, tam):
         # config
-        self.n = tam.shape[0]       # number of thrusters
-        self.tam = tam              # thruster allocation matrix
+        self.n = tam.shape[0]               # number of thrusters
+        self.tam = tam                      # thruster allocation matrix
+        self.delta_u = np.ones(self.n) * MODEL_DELTA
 
         # parameters
         self.beta = 10.0
@@ -70,6 +72,10 @@ class OptimalThrustAllocator(object):
         self.s = cp.Variable(self.n)
         self.td = cp.Parameter(self.n)
         self.u_avail = cp.Parameter(self.n, sign='positive')
+        self.u_prev = cp.Parameter(self.n)
+
+        # init u_prev
+        self.u_prev.value = np.zeros(self.n)
 
         # build the cost function
         currents = MODEL_THR_FWD[0] * cp.abs(self.u)**2 + MODEL_THR_FWD[1] * cp.abs(self.u) + MODEL_THR_FWD[2]
@@ -84,6 +90,8 @@ class OptimalThrustAllocator(object):
         self.constraints = [
             self.u <= self.u_avail, self.u >= -self.u_avail,
             self.tam * self.u == self.td - self.s,
+            self.u - self.u_prev <= self.delta_u,
+            -self.delta_u <= self.u - self.u_prev
         ]
 
         # define the parametric problem
@@ -95,11 +103,18 @@ class OptimalThrustAllocator(object):
         self.td.value = tau
         self.u_avail.value = force_avail
 
+        # allocate solution
+        u_curr = np.zeros_like(force_avail)
+
         # solve the problem
-        self.prob.solve(solver=cp.ECOS, abstol=1e-3, reltol=1e-3, feastol=1e-3)
+        self.prob.solve(solver=cp.ECOS)
+        #self.prob.solve(solver=cp.ECOS, abstol=1e-3, reltol=1e-3, feastol=1e-3)
 
         # TODO: throw an exception if the solver is not working and switch back to standard allocation in pilot
         if self.prob.status != cp.OPTIMAL:
-            return np.zeros_like(force_avail)
+            return u_curr
 
-        return np.array(self.u.value).flatten()
+        u_curr = np.array(self.u.value).flatten()
+        self.u_prev.value = u_curr
+
+        return u_curr

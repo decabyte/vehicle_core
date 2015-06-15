@@ -258,7 +258,7 @@ class CascadedController(VehicleController):
 
         # update jacobians
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.inv(self.J)
+        self.J_inv = np.linalg.pinv(self.J)
 
         # model-free pid cascaded controller
         #   first pid (outer loop on position)
@@ -272,12 +272,14 @@ class CascadedController(VehicleController):
         # update errors
         self.err_pos_der = (self.err_pos - self.err_pos_prev) / self.dt
         self.err_pos_int = np.clip(self.err_pos_int + self.err_pos, -self.pos_lim, self.pos_lim)
-        self.err_pos_prev = self.err_pos
 
         # Position integral terms set to zero to avoid oscillations
         pos_changed = np.sign(self.err_pos) != np.sign(self.err_pos_prev)
         pos_changed[2] = False  # ignore the depth
         self.err_pos_int[pos_changed] = 0.0
+
+        # update previous error
+        self.err_pos_prev = self.err_pos
 
         # first pid output (plus speed limits if requested by the user)
         self.req_vel = (-self.pos_Kp * self.err_pos) + (-self.pos_Kd * self.err_pos_der) + (
@@ -297,12 +299,15 @@ class CascadedController(VehicleController):
         self.err_vel = np.clip(self.vel - self.req_vel, -self.vel_input_lim, self.vel_input_lim)
         self.err_vel_der = (self.err_vel - self.err_vel_prev) / self.dt
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
-        self.err_vel_prev = self.err_vel
 
         # velocity integral terms set to zero to avoid oscillations
         vel_changed = np.sign(self.err_vel) != np.sign(self.err_vel_prev)
         vel_changed[2] = False  # ignore the depth
         self.err_vel_int[vel_changed] = 0.0
+
+        # update previous error
+        self.err_vel_prev = self.err_vel
+
 
         # second pid output
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
