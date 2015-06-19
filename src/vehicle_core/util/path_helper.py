@@ -46,7 +46,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.animation
 
-from vehicle_core.util import trajectory_tools as tt
+from vehicle_core.path import trajectory_tools as tt
 from vehicle_core.path import search_patterns as sp
 from vehicle_core.path import path_strategy as ps
 

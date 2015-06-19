@@ -59,7 +59,14 @@ from vehicle_interface.msg import PathRequest, PathStatus, Vector6, PilotRequest
 from vehicle_interface.srv import PathService
 
 # local config
-USE_ENERGY = False
+USE_ENERGY = True
+
+try:
+    roslib.load_manifest('saetta_energy')
+    from saetta_energy.msg import EnergyReport
+except ImportError:
+    # disable energy measurements if the energy subsystem is not available
+    USE_ENERGY = False
 
 # topics
 TOPIC_STATUS = 'path/status'
@@ -101,11 +108,12 @@ class PathExecutor(object):
         self.experiment_completed = False
 
         # export data
+        self.label = kwargs.get('label', 'current')
         self.csv_file = '{0}_{1}.csv'.format(CSV_PREFIX, suffix)
         self.csv_file = os.path.join(os.getcwd(), self.csv_file)
 
         self.header = [
-            'time', 'theta', 'path', 'mode', 'duration'
+            'time', 'theta', 'path', 'mode', 'label', 'duration'
         ]
 
         # change sign to switch from marine to maths angle direction convention
@@ -124,6 +132,9 @@ class PathExecutor(object):
         if USE_ENERGY:
             self.sub_energy = rospy.Subscriber(TOPIC_ENERGY, EnergyReport, self.handle_energy, queue_size=10, tcp_nodelay=True)
             self.header.append('energy_used')
+            rospy.loginfo('%s: energy framework found, logging energy ...', self.name)
+        else:
+            rospy.loginfo('%s: energy framework not found, skipping energy ...', self.name)
 
 
     def check_export(self):
@@ -152,12 +163,14 @@ class PathExecutor(object):
 
         with open(self.csv_file, 'a') as exp_file:
             writer = csv.writer(exp_file, delimiter=',')
+            filename = self.path_file.split('/')[-1]
 
             row = list()
             row.append(self.time_started)
             row.append(self.theta)
-            row.append(self.path_file)
+            row.append(filename)
             row.append(self.path_mode)
+            row.append(self.label)
             row.append(self.duration)
 
             if USE_ENERGY:
@@ -202,7 +215,7 @@ class PathExecutor(object):
         except Exception as e:
             rospy.logerr('%s: unable to communicate with path service ...', self.name)
 
-    def send_path(self, points, mode='simple', timeout=1000):
+    def send_path(self, points, mode='simple', timeout=1000, target_speed=1.0, look_ahead=5.0, **kwargs):
         msg = PathRequest()
         msg.header.stamp = rospy.Time.now()
         msg.command = 'path'
@@ -210,6 +223,8 @@ class PathExecutor(object):
         msg.options = [
             KeyValue('mode', mode),
             KeyValue('timeout', str(timeout)),
+            KeyValue('target_speed', str(target_speed)),
+            KeyValue('look_ahead', str(look_ahead)),
         ]
 
         self.pub_path.publish(msg)
@@ -221,7 +236,7 @@ class PathExecutor(object):
     def handle_status(self, msg):
         self.time_started = msg.time_start
 
-        if msg.path_status == PathStatus.PATH_COMPLETED:
+        if msg.path_status == PathStatus.PATH_COMPLETED and msg.navigation_status == PathStatus.NAV_HOVERING:
             if not self.experiment_running and not self.initial_point:
                 self.initial_point = True
 
@@ -270,7 +285,7 @@ class PathExecutor(object):
                 self.t_last = time.time()
 
                 rospy.loginfo('%s: requesting path (mode: %s) ...', self.name, self.path_mode)
-                self.send_path(self.path_points, mode=self.path_mode)
+                self.send_path(self.path_points, mode=self.path_mode, target_speed=0.5)
 
                 self.experiment_running = True
 
@@ -302,6 +317,7 @@ def parse_arguments():
 
     # output group
     parser.add_argument('--output', default='last', help='Output file to save during the experiments.')
+    parser.add_argument('--label', default='current', help='Optional comment to add to the result file.')
     parser.add_argument('-v', '--verbose', action='store_true', help='Print detailed information.')
 
     return parser.parse_args()
@@ -313,15 +329,6 @@ def main():
 
     # parse args
     args = parse_arguments()
-
-    # enable energy measurements if the energy subsystem is available
-    try:
-        roslib.load_manifest('saetta_energy')
-
-        from saetta_energy.msg import EnergyReport
-        rospy.logwarn('%s: energy framework detected, collecting energy measurements ...', name)
-    except ImportError:
-        rospy.logwarn('%s: no energy framework detected, skipping energy measurements ...', name)
 
     # config
     # off_n = args.n_offset
@@ -346,7 +353,7 @@ def main():
         sys.exit(-1) 
 
     # run the experiment
-    we = PathExecutor(name, offset_yaw=off_yaw, suffix=suffix, mode=args.mode, path=args.path)
+    we = PathExecutor(name, offset_yaw=off_yaw, suffix=suffix, mode=args.mode, path=args.path, label=args.label)
 
     try:
         we.run()

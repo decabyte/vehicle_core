@@ -62,7 +62,7 @@ DEFAULT_TOLERANCES = np.array([
 LINE_SPACING = 10       # meters
 
 FAST_SPEED = 1.0        # m/s
-FAST_TOLERANCES = 3.0   # meters
+FAST_TOLERANCES = 2.0   # meters
 FAST_LOOKAHEAD = 5.0    # meters
 
 
