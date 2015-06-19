@@ -210,10 +210,11 @@ class LineStrategy(PathStrategy):
         #   until reaching the requested waypoint (this takes into account disturbances)
         if np.all(np.abs(error_position[0:2]) < 2 * self.tolerances[0:2]):
             self.proximity = True
+            self.dis_axis = np.zeros(6)
 
             # when close to the last waypoint enable full dof control
-            if self.cnt == len(self.points) - 1:
-                self.dis_axis = np.zeros(6)
+            #if self.cnt == len(self.points) - 1:
+            #   self.dis_axis = np.zeros(6)
 
         # if waypoint is far adjust vehicle orientation towards the next waypoint
         if not self.proximity:
