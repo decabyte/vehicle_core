@@ -712,9 +712,17 @@ class VehiclePilot(object):
         # init pilot
         rospy.loginfo('%s: pilot initialized ...', self.name)
 
+        import time
+
         # pilot loop
         while not rospy.is_shutdown():
+            #t_start = time.time()
+
+            # run main pilot code
             self.loop()
+
+            # t_end = time.time()
+            #rospy.loginfo('%s: loop time: %.3f s', self.name, t_end - t_start)
 
             try:
                 self.pilot_loop.sleep()

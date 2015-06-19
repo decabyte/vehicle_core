@@ -1,7 +1,41 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Assumes vehicle is to start from the left bottom corner of the tank and
-# move 15 meters to the left and 10 meters away.
+
+# Software License Agreement (BSD License)
+#
+#  Copyright (c) 2014, Ocean Systems Laboratory, Heriot-Watt University, UK.
+#  All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted provided that the following conditions
+#  are met:
+#
+#   * Redistributions of source code must retain the above copyright
+#     notice, this list of conditions and the following disclaimer.
+#   * Redistributions in binary form must reproduce the above
+#     copyright notice, this list of conditions and the following
+#     disclaimer in the documentation and/or other materials provided
+#     with the distribution.
+#   * Neither the name of the Heriot-Watt University nor the names of
+#     its contributors may be used to endorse or promote products
+#     derived from this software without specific prior written
+#     permission.
+#
+#  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+#  "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+#  LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+#  FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+#  COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+#  INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+#  BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+#  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+#  CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+#  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+#  ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+#
+#  Original authors:
+#   Valerio De Carolis, Marian Andrecki, Corina Barbalata, Gordon Frost
 
 from __future__ import division
 
@@ -20,24 +54,16 @@ import rospy
 import roslib
 roslib.load_manifest('vehicle_core')
 
-
 from diagnostic_msgs.msg import KeyValue
-from vehicle_interface.msg import PathStatus, Vector6, PilotRequest
+from vehicle_interface.msg import PathRequest, PathStatus, Vector6, PilotRequest
 from vehicle_interface.srv import PathService
 
-
-# enable energy measurements if the energy subsystem is available
+# local config
 USE_ENERGY = False
-
-try:
-    from saetta_energy.msg import EnergyReport
-    USE_ENERGY = True
-except ImportError:
-    print('No energy framework detected, skipping energy measurements ...')
-
 
 # topics
 TOPIC_STATUS = 'path/status'
+TOPIC_PATH = 'path/request'
 TOPIC_POS = 'pilot/position_req'
 SRV_PATH = 'path/control'
 SRV_SWITCH = 'pilot/switch'
@@ -70,8 +96,9 @@ class PathExecutor(object):
         self.time_started = 0
 
         # flags
-        self.wait = True
+        self.initial_point = False
         self.experiment_running = False
+        self.experiment_completed = False
 
         # export data
         self.csv_file = '{0}_{1}.csv'.format(CSV_PREFIX, suffix)
@@ -91,35 +118,12 @@ class PathExecutor(object):
 
         # ros interface
         self.srv_path = rospy.ServiceProxy(SRV_PATH, PathService)
-        self.sub_pil = rospy.Subscriber(TOPIC_STATUS, PathStatus, self.handle_status)
+        self.pub_path = rospy.Publisher(TOPIC_PATH, PathRequest, queue_size=1, tcp_nodelay=True)
+        self.sub_pil = rospy.Subscriber(TOPIC_STATUS, PathStatus, self.handle_status, queue_size=10, tcp_nodelay=True)
 
         if USE_ENERGY:
-            self.sub_energy = rospy.Subscriber(TOPIC_ENERGY, EnergyReport, self.handle_energy)
+            self.sub_energy = rospy.Subscriber(TOPIC_ENERGY, EnergyReport, self.handle_energy, queue_size=10, tcp_nodelay=True)
             self.header.append('energy_used')
-
-
-    def handle_energy(self, msg):
-        # parse energy data
-        self.energy_last = msg.energy_used
-
-
-    def handle_status(self, msg):
-        # values
-        self.time_started = msg.time_start
-
-        if msg.path_status == PathStatus.PATH_COMPLETED:
-            self.wait = False
-
-            if self.experiment_running:
-                self.experiment_completed = True
-                self.experiment_running = False
-
-                # update counters
-                self.duration = msg.time_elapsed
-                self.energy_used = self.energy_last - self.energy_initial
-
-                # dump experiment data
-                self.append_data()
 
 
     def check_export(self):
@@ -142,7 +146,6 @@ class PathExecutor(object):
                 writer = csv.writer(exp_file, delimiter=',')
                 writer.writerow(self.header)
 
-
     def append_data(self):
         if self.energy_initial == 0:
             rospy.logwarn('%s: not logging energy ...', self.name)
@@ -163,11 +166,8 @@ class PathExecutor(object):
             rospy.loginfo('%s: saving data to %s', self.name, self.csv_file)
             writer.writerow(row)
 
-
-    def run(self):
-        # check data file
-        self.check_export()
-
+    def load_path(self):
+        """This loads the path points from the file provided by the user"""
         # calculate offsets and points
         rot_matrix = np.eye(6)
         rot_matrix[0,0] = np.cos(self.theta)
@@ -175,7 +175,6 @@ class PathExecutor(object):
         rot_matrix[1,0] = np.sin(self.theta)
         rot_matrix[1,1] = np.cos(self.theta)
 
-        # load path
         try:
             with open(self.path_file, 'rt') as f:
                 path_dict = json.loads(f.read())
@@ -194,89 +193,101 @@ class PathExecutor(object):
         except Exception:
             tb = traceback.format_exc()
             rospy.logfatal('%s: caught exception:\n%s', self.name, tb)
-            sys.exit(-1)
+            sys.exit(-1)    
 
-        # reset the path controller
+    def path_reset(self):
+        """This functions uses a service request to reset the state of the path controller"""
         try:
             self.srv_path.call(command='reset')
-        except Exception:
-            rospy.logerr('%s unable to communicate with path service ...', self.name)
+        except Exception as e:
+            rospy.logerr('%s: unable to communicate with path service ...', self.name)
+
+    def send_path(self, points, mode='simple', timeout=1000):
+        msg = PathRequest()
+        msg.header.stamp = rospy.Time.now()
+        msg.command = 'path'
+        msg.points = points
+        msg.options = [
+            KeyValue('mode', mode),
+            KeyValue('timeout', str(timeout)),
+        ]
+
+        self.pub_path.publish(msg)
+
+    def handle_energy(self, msg):
+        # parse energy data
+        self.energy_last = msg.energy_used
+
+    def handle_status(self, msg):
+        self.time_started = msg.time_start
+
+        if msg.path_status == PathStatus.PATH_COMPLETED:
+            if not self.experiment_running and not self.initial_point:
+                self.initial_point = True
+
+            if self.experiment_running:
+                self.experiment_completed = True
+                self.experiment_running = False
+
+                # update counters
+                self.duration = msg.time_elapsed
+                self.energy_used = self.energy_last - self.energy_initial
+
+                # dump experiment data
+                self.append_data()
+
+
+    def run(self):
+        # check data file
+        self.check_export()
+
+        # load path
+        self.load_path()
 
         # reach initial point
-        rospy.loginfo('%s: reaching initial point ...', self.name)
+        points = list()
+        points.append(self.path_points[0])
+        points.append(self.path_points[0])
+        self.send_path(points)
 
-        path_initial = [
-            self.path_points[0]
-        ]
-        options = [
-            KeyValue('mode', 'simple'),
-            KeyValue('timeout', '1000'),
-            KeyValue('target_speed', '0.4')
-        ]
+        # initial reset (workaround)
+        rospy.sleep(1.0)
+        self.path_reset()
+        rospy.sleep(1.0)
 
-        try:
-            self.wait = True
-            self.srv_path.call(command='path', points=path_initial, options=options)
-            self.srv_path.call(command='start')
-        except Exception:
-            self.wait = False
-            rospy.logerr('%s unable to communicate with path service ...', self.name)
-            sys.exit(-1)
+        rospy.loginfo('%s: requesting initial point ...', self.name)
+        self.send_path(points)
 
-        while self.wait:
-            if rospy.is_shutdown():
-                sys.exit(-1)
-            else:
-                rospy.sleep(0.5)
+        while not rospy.is_shutdown():
+            if self.experiment_completed:
+                break
 
-        # wait a little bit
-        rospy.sleep(5)
+            if self.initial_point and not self.experiment_running:
+                # start the experiment
+                rospy.loginfo('%s: starting experiment ...', self.name)
+                self.energy_initial = self.energy_last
+                self.t_expire = time.time() + 1000
+                self.t_last = time.time()
 
-        # experiment
-        rospy.loginfo('%s: starting experiment ...', self.name)
+                rospy.loginfo('%s: requesting path (mode: %s) ...', self.name, self.path_mode)
+                self.send_path(self.path_points, mode=self.path_mode)
 
-        self.options = [
-            KeyValue('mode', self.path_mode),
-            KeyValue('timeout', '1000'),
-            KeyValue('target_speed', '0.4')
-        ]
+                self.experiment_running = True
 
-        try:
-            self.experiment_running = True
-            self.wait = True
-            self.energy_initial = self.energy_last
-            self.t_expire = time.time() + 1000
-            self.t_last = time.time()
-
-            rospy.loginfo('%s: requesting path (mode: %s) ...', self.name, self.path_mode)
-            self.srv_path.call(command='path', points=self.path_points, options=self.options)
-            self.srv_path.call(command='start')
-
-        except Exception:
-            self.wait = False
-            rospy.logerr('%s unable to communicate with path service ...', self.name)
-
-
-        while self.wait:
-            if rospy.is_shutdown():
+            if self.experiment_running and self.t_last >= self.t_expire:
                 rospy.logerr('%s: experiment timeout ...', self.name)
                 break
-            elif self.t_last >= self.t_expire:
-                rospy.logerr('%s: ros is shutdown ...', self.name)
-                break
-            else:
-                rospy.sleep(2.0)
 
-        try:
-            self.srv_path.call(command='reset')
-        except Exception:
-            rospy.logerr('%s unable to communicate with path service ...', self.name)
+            rospy.sleep(0.5)
+
+        # reset the path controller
+        #self.path_reset()
 
         # congratulations!
         rospy.loginfo('%s: experiment completed ...', self.name)
 
 
-if __name__ == '__main__':
+def parse_arguments():
     parser = argparse.ArgumentParser(
         description='Utility for running experiments using the path controller.',
         epilog='This is part of vehicle_core module.'
@@ -293,11 +304,24 @@ if __name__ == '__main__':
     parser.add_argument('--output', default='last', help='Output file to save during the experiments.')
     parser.add_argument('-v', '--verbose', action='store_true', help='Print detailed information.')
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
+def main():
     # init the ROS node
     rospy.init_node('path_executor')
     name = rospy.get_name()
+
+    # parse args
+    args = parse_arguments()
+
+    # enable energy measurements if the energy subsystem is available
+    try:
+        roslib.load_manifest('saetta_energy')
+
+        from saetta_energy.msg import EnergyReport
+        rospy.logwarn('%s: energy framework detected, collecting energy measurements ...', name)
+    except ImportError:
+        rospy.logwarn('%s: no energy framework detected, skipping energy measurements ...', name)
 
     # config
     # off_n = args.n_offset
@@ -330,3 +354,6 @@ if __name__ == '__main__':
         tb = traceback.format_exc()
         rospy.logfatal('%s: uncaught exception:\n%s', name, tb)
         sys.exit(-1)
+
+if __name__ == '__main__':
+    main()

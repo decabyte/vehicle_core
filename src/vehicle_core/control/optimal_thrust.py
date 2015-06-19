@@ -54,9 +54,9 @@ class OptimalThrustAllocator(object):
 
     def __init__(self, tam):
         # config
-        self.n = tam.shape[0]               # number of thrusters
-        self.tam = tam                      # thruster allocation matrix
-        self.delta_u = np.ones(self.n) * MODEL_DELTA
+        self.n = tam.shape[0]                               # number of thrusters
+        self.tam = tam                                      # thruster allocation matrix
+        self.delta_u = np.ones(self.n) * MODEL_DELTA        # maximum change in Newtons
 
         # parameters
         self.beta = 10.0
