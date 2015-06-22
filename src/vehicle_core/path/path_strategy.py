@@ -301,10 +301,13 @@ class FastTimeStrategy(PathStrategy):
             self.des_pos[5] = tt.calculate_orientation(position, self.des_pos)
 
             error_position = self.calculate_position_error(position, self.points[self.cnt, :])
+            error_position = error_position.flatten()
 
-            if np.all(np.abs(error_position) < self.tolerances):
+            # final condition only on surge, sway and heave
+            if np.all(np.abs(error_position[0:3]) < self.tolerances[0:3]):
                 self.des_pos = self.points[-1]      # keep sending the last point
                 self.dis_axis = np.zeros(6)         # terminal state (use all dofs for fine approach)
+
                 self.path_completed = True
                 # print('Path completed')
 
