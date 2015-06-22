@@ -59,11 +59,9 @@ DEFAULT_TOLERANCES = np.array([
     np.deg2rad(6)       # radians
 ])
 
-LINE_SPACING = 10       # meters
-
 FAST_SPEED = 1.0        # m/s
-FAST_TOLERANCES = 2.0   # meters
 FAST_LOOKAHEAD = 5.0    # meters
+LINE_SPACING = 10       # meters
 
 
 class PathStrategy(object):
@@ -258,9 +256,6 @@ class FastTimeStrategy(PathStrategy):
         self.target_speed = float(kwargs.get('target_speed', FAST_SPEED))
         self.kind = kwargs.get('interpolation_method', 'linear')
 
-        # use dedicated tolerances
-        self.tolerances = FAST_TOLERANCES
-
         # trajectory time
         self.t = 0.0
         self.t_interp = self.cum_distances / self.target_speed      # time at the end of each leg
@@ -305,9 +300,9 @@ class FastTimeStrategy(PathStrategy):
             self.des_pos = self.points[-1]
             self.des_pos[5] = tt.calculate_orientation(position, self.des_pos)
 
-            waypoint_error = self.calculate_position_error(position, self.points[self.cnt, :])
+            error_position = self.calculate_position_error(position, self.points[self.cnt, :])
 
-            if np.all(np.abs(waypoint_error) < self.tolerances):
+            if np.all(np.abs(error_position) < self.tolerances):
                 self.des_pos = self.points[-1]      # keep sending the last point
                 self.dis_axis = np.zeros(6)         # terminal state (use all dofs for fine approach)
                 self.path_completed = True
