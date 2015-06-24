@@ -50,7 +50,6 @@ This will enable software-in-the-loop (SIL) and hardware-in-the-loop (HIL)
 simulations for a generic underwater vehicle given the thruster allocation
 matrix (TAM) and the dynamic equations (DE).
 """
-
 from __future__ import division
 
 import traceback
@@ -75,7 +74,6 @@ from std_srvs.srv import Empty, EmptyResponse
 from vehicle_interface.msg import FloatArrayStamped, Vector6Stamped
 from vehicle_interface.srv import Vector6Service, Vector6ServiceResponse
 
-
 # params
 RATE_SIM = 20       # simulation rate (Hz) (this is limited by the current implementation)
 RATE_PUB = 10       # publisher rate (Hz) (one should publish messages at a slower rate)
@@ -93,7 +91,6 @@ TOPIC_ODM = 'nav/odometry'
 FRAME_PARENT = 'world'
 FRAME_ODOM = 'odom'
 FRAME_CHILD = 'base_link'
-
 
 # simulator constants
 DEFAULT_SEED = 47
@@ -227,7 +224,6 @@ class NavigationSimulator(object):
             self.t_pri = rospy.Timer(rospy.Duration(1), self.print_status)
             #self.t_net = rospy.Timer(rospy.Duration(1 / pub_rate), self.send_forces)
 
-
     def handle_reset(self, req):
         """Resets the status of the navigation simulator."""
         self.pos = np.zeros(6, dtype=np.float64)
@@ -273,12 +269,10 @@ class NavigationSimulator(object):
                       self.name, self.water_surf, self.water_sigma,
                       self.water_a, self.water_a_sigma, self.water_b, self.water_b_sigma)
 
-
     def handle_forces(self, data):
         # load forces from message
         #   forces are in body frame coordinates
         self.tau = np.array(data.values[0:6], dtype=np.float64)
-
 
     def publish_navigation(self, event=None):
         """This function is used for publishing sending data outside of this node.
@@ -299,7 +293,6 @@ class NavigationSimulator(object):
         self.send_tf_odom(pos, vel)
         #self.send_tf_ned(pos, vel)
 
-
     def send_tf_ned(self, pos, vel):
         """This is publishing the correct TF transformation with respect to vehicle frame
 
@@ -310,7 +303,6 @@ class NavigationSimulator(object):
         child = '{}_{}'.format(self.frame_child, 'ned')
 
         self.br.sendTransform(translation, rotation, rospy.Time.now(), child, self.frame_odom)
-
 
     def send_tf_odom(self, pos, vel):
         """This is publishing the correct TF transformation with respect to RViz visualizer
@@ -355,7 +347,6 @@ class NavigationSimulator(object):
 
         self.pub_odom.publish(od)
 
-
     def send_nav_sts(self, pos, vel):
         ns = NavSts()
         ns.header.stamp = rospy.Time.now()
@@ -380,7 +371,6 @@ class NavigationSimulator(object):
 
         self.pub_navs.publish(ns)
 
-
     # def send_forces(self, event=None):
     #     # net force acting on the vehicle (useful for rviz)
     #     ws = WrenchStamped()
@@ -393,7 +383,6 @@ class NavigationSimulator(object):
     #     ws.wrench.torque.y = -self.sim_nav.F_net[4]
     #     ws.wrench.torque.z = -self.sim_nav.F_net[5]
     #     self.pub_force.publish(ws)
-
 
     def update_water_currents(self):
         """This updates the vel_model variable used for the dynamic model equations based on the current state.
@@ -440,7 +429,6 @@ class NavigationSimulator(object):
 
         # rospy.loginfo('%s: vw: %s', self.name, self.vel_water)
 
-
     def int_naive(self):
         """naive integration"""
         # calculate acceleration from forces using the dynamic model
@@ -456,7 +444,6 @@ class NavigationSimulator(object):
 
         # integration of position (double term integrator)
         self.pos = self.pos + (vel_efec * self.dt) + 0.5 * (self.acc * self.dt * self.dt)
-
 
     def int_velocity_verlet(self):
         """velocity verlet integrator
@@ -479,7 +466,6 @@ class NavigationSimulator(object):
         # compute the new velocity from forces using the dynamic model
         self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel)
         self.vel = self.vel + 0.5 * (acc_prev + self.acc) * self.dt
-
 
     # Runge-Kutta integration method:
     #   - rk4_derivative: this function update the state using derivatives
@@ -506,7 +492,6 @@ class NavigationSimulator(object):
         k4 = f(x + h, y + h * k3)
 
         return x + h, y + ((h / 6.0) * (k1 + 2 * (k2 + k3) + k4))
-
 
     def update_simulation(self):
         """This method updates the status of the simulated vehicle.
@@ -539,7 +524,6 @@ class NavigationSimulator(object):
             self.vel[2] = 0
             self.pos[2] = MIN_DEPTH
 
-
     def run(self):
         # init simulation
         self.tau = np.zeros(6, dtype=np.float64)
@@ -552,7 +536,6 @@ class NavigationSimulator(object):
                 self.sim_loop.sleep()
             except rospy.ROSInterruptException:
                 rospy.loginfo('%s shutdown requested ...', self.name)
-
 
     def print_status(self, event=None):
         print(self)
@@ -610,7 +593,6 @@ def main():
     except Exception:
         tb = traceback.format_exc()
         rospy.logfatal('%s uncaught exception, dying!\n%s', name, tb)
-
 
 if __name__ == '__main__':
     main()
