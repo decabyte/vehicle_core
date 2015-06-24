@@ -32,7 +32,36 @@ Requirements
 Run Simulator
 ---
 
-1) Run nav simulator
+1) Run vehicle simulator (this includes the navigation simulator, the vehicle pilot with simulation config and the path controller):
+  ```
+  roslaunch vehicle_core simulator.launch use_gui:=true
+  ```
+  
+2) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
+  ```
+  rosservice call /pilot/switch "request: true"
+  ```
+  
+3) Send a command to the pilot using the command-line (i.e. move the vehile to zero position):
+  ```
+  rostopic pub /pilot/position_req vehicle_interface/PilotRequest "position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
+  ```
+
+Extra: For testing the path controller please use any of the path scripts included in this package:
+  ```
+  vehicle_core/tests/pp_lines_path.sh
+  vehicle_core/scripts/path_cli.sh start
+  ```
+  
+Extra: Use a different control law, run this instead of `pilot_sim.launch`:
+  ```
+  MODEL=1 roslaunch vehicle_core simulator.launch use_gui:=true
+  AUTO=1 roslaunch vehicle_core simulator.launch use_gui:=true
+  ```
+  
+Behind the scenes the simulation.launch scripts is running the following nodes:
+ 
+1) Run the navigation simulator
   ```
   roslaunch vehicle_core nav_sim.launch
   ```
@@ -46,28 +75,13 @@ Run Simulator
   ```
   roslaunch vehicle_core nav_visual.launch
   ```
-  
-4) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
-  ```
-  rosservice call /pilot/switch "request: true"
-  ```
-  
-5) Send a command to the pilot using the command-line (i.e. move the vehile to zero position):
-  ```
-  rostopic pub /pilot/position_req vehicle_interface/PilotRequest "position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
-  ```
 
-Extra: For trajectory tracking, enable the path:
+4) Run the path controller:
   ```
   roslaunch vehicle_core path_controller.launch
-  vehicle_core/tests/pp_lines_path.sh
-  vehicle_core/scripts/path_cli.sh start
   ```
-  
-Extra: Use a different control law, run this instead of `pilot_sim.launch`:
-  ```
-  roslaunch vehicle_core auto_sim.launch
-  ```
+ 
+ 
   
 Run Real Operation
 ---

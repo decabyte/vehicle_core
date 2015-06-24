@@ -161,11 +161,13 @@ class NavigationSimulator(object):
         self.pos_prev = np.zeros(6, dtype=np.float64) # position: linear and angular position
 
         # water current
-        self.water_a = kwargs.get('water_a', 0.0)               # angle of attack (radians)
-        self.water_b = kwargs.get('water_b', 0.0)               # angle of attack (radians)
-        self.water_surf = kwargs.get('water_surf', 0.0)         # surface speed of water current
-        self.water_mu = kwargs.get('water_mu', 0.0)             # water speed noise model
-        self.water_sigma = kwargs.get('water_sigma', 0.001)     #   normal distribution (mu, sigma)
+        self.water_surf = kwargs.get('water_surf', 0.0)             # surface speed of water current
+        self.water_sigma = kwargs.get('water_sigma', 0.001)         #   normal distribution (mu, sigma)
+
+        self.water_a = kwargs.get('water_a', 0.0)                   # angle of attack elevation (radians)
+        self.water_a_sigma = kwargs.get('water_a_sigma', 0.001)     # angle of attack elevation variance (radians)
+        self.water_b = kwargs.get('water_b', 0.0)                   # angle of attack azimuth (radians)
+        self.water_b_sigma = kwargs.get('water_b_sigma', 0.001)     # angle of attack azimuth variance (radians)
 
         # init the rng (aiming for repeatable experiments)
         np.random.seed(DEFAULT_SEED)
@@ -245,18 +247,31 @@ class NavigationSimulator(object):
     def handle_water(self, data):
         """Sets the water current using the user request. This assumes the data input to be an array of floats where:
             a[0] = water surface speed (m/s)
-            a[1] = water angle of attack (azimuth, radians)
-            a[2] = water angle of attack (elevation, radians)
+            a[1] = water surface speed variance (m/s)^2
+            a[2] = water angle of attack (azimuth, radians)
+            a[3] = water angle of attack variance (azimuth, radians^2)
+            a[4] = water angle of attack (elevation, radians)
+            a[5] = water angle of attack variance (elevation, radians^2)
         """
-        if(len(data.values) < 3):
+        params = len(data.values)
+
+        if(params < 2):
             return
 
-        # TODO: read the mu and sigma from user otherwise set to 0 and 0.001
         self.water_surf = np.clip(data.values[0], 0.0, MAX_CURRENT)
-        self.water_a = cnv.wrap_pi(data.values[1])
-        self.water_b = cnv.wrap_pi(data.values[2])
+        self.water_sigma = np.clip(data.values[1], 0.001, MAX_CURRENT)
 
-        rospy.loginfo('%s updating water current (s: %.3f, a: %.3f, b: %.3f)', self.name, self.water_surf, self.water_a, self.water_b)
+        if(params >= 4):
+            self.water_a = cnv.wrap_pi(data.values[2])
+            self.water_a_sigma = np.clip(data.values[3], 0.001, np.pi)
+
+        if(params >= 6):
+            self.water_b = cnv.wrap_pi(data.values[4])
+            self.water_b_sigma = np.clip(data.values[5], 0.001, np.pi)
+
+        rospy.loginfo('%s updating water current (vs: %.3f, sigma: %.3f, a: %.3f, as: %.3f, b: %.3f, bs: %.3f)',
+                      self.name, self.water_surf, self.water_sigma,
+                      self.water_a, self.water_a_sigma, self.water_b, self.water_b_sigma)
 
 
     def handle_forces(self, data):
@@ -386,23 +401,27 @@ class NavigationSimulator(object):
         First the velocity of the water current is calculated based on vehicle position, direction of the currents and
         the sea state. Later the water current velocity is added to the actual vehicle velocity.
         """
-        Cya = np.eye(3)
-        Czb = np.eye(3)
+        Cza = np.eye(3)
+        Cyb = np.eye(3)
 
-        Cya[0, 0] = np.cos(self.water_a)
-        Cya[0, 2] = -np.sin(self.water_a)
-        Cya[2, 0] = -np.sin(self.water_a)
-        Cya[2, 2] = np.cos(self.water_a)
+        # water flow orientation model with added noise
+        a = np.random.normal(self.water_a, self.water_a_sigma)
+        b = np.random.normal(self.water_b, self.water_b_sigma)
 
-        Czb[0, 0] = np.cos(-self.water_b)
-        Czb[0, 1] = np.sin(-self.water_b)
-        Czb[1, 0] = -np.sin(-self.water_b)
-        Czb[1, 1] = np.cos(-self.water_b)
+        Cza[0, 0] = np.cos(a)
+        Cza[0, 2] = -np.sin(a)
+        Cza[2, 0] = -np.sin(a)
+        Cza[2, 2] = np.cos(a)
+
+        Cyb[0, 0] = np.cos(-b)
+        Cyb[0, 1] = np.sin(-b)
+        Cyb[1, 0] = -np.sin(-b)
+        Cyb[1, 1] = np.cos(-b)
 
         # calculate the water velocity
         #   this assumes a single layer below the surface (with constant behaviour for the first 10 meters)
         #   and logarithmic decay with the increase of depth
-        vs = self.water_surf + np.random.normal(self.water_mu, self.water_sigma)
+        vs = np.random.normal(self.water_surf, self.water_sigma)
 
         if self.pos[2] < 10.0:
             vz = vs
@@ -413,11 +432,13 @@ class NavigationSimulator(object):
         vc[0] = vz
 
         # calculate the velocity vector
-        self.water_ef = np.dot(Cya, np.dot(Czb, vc.reshape(-1, 1)))
+        self.water_ef = np.dot(Cza, np.dot(Cyb, vc.reshape(-1, 1)))
         self.vel_water = np.dot(self.J_inv[0:3, 0:3], self.water_ef).flatten()
 
         self.vel_model[0:5] = self.vel[0:5]     # copy the values in the vel_model
         self.vel_model[0:3] += self.vel_water   # add water currents
+
+        # rospy.loginfo('%s: vw: %s', self.name, self.vel_water)
 
 
     def int_naive(self):

@@ -11,9 +11,11 @@ sim:
         pos: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]     # position vector (x, y, z, k, m, n)
 
         # water currents
-        water_a: 0.0            # radians
-        water_b: 0.0            # radians
-        water_surf: 0.0         # m/s
+        water_surf: 0.0         # water surface speed (m/s)
+        water_sigma: 0.001      # water surface speed variance (m/s)^2            (MUST be different than 0.0)
 
-        water_mu: 0.0           # mean value (m/s)  --  this can be equals to zero
-        water_sigma: 0.001      # variance (m/s)    --  this should be different than zero
+        water_a: 0.0            # angle of attack elevation (radians)
+        water_a_sigma: 0.001    # angle of attack elevation variance (radians^2)  (MUST be different than 0.0)
+
+        water_b: 0.0            # angle of attack azimuth (radians)
+        water_b_sigma: 0.001    # angle of attack azimuth variance (radians^2)    (MUST be different than 0.0)
