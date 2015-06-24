@@ -1,36 +1,19 @@
-vehicle_core
-============
+# Vehicle Core
 
 This repo holds the ROS package of the Autonomous Vehicle Software (AVS) used with OSL vehicles. This package is
 meant to be python importable from other scripts and packages. It provides a consolidated set of modules, nodes,
 configuration and launch files to run basic missions with one of the OSL's vehicles.
 
-Guidelines
-----------
+Detailed documentation can be found in the [docs](docs) folder of this repo.
 
-Before attempting any modification to this repo please make sure thar:
-  - you are working on an up-to-date version of the `master` branch
-  - the previous working version of the repo has been tagged (`git tag --list` to check the tags)
-  - you have considered the option of creating a new branch for your feature (`git checkout -b <branch_name>` to create a new branch), after all this is the recommended approach!
-  - you know what are you doing!
-  
-Initially this repo is providing packages using the `rosbuild` build system until the OSL vehicles are migrated to an
- upgraded version of the ROS. Later the rosbuild support is going to be dropped and the master branch will offer a
- catkinized package format. The software development follows a couple of principles that have been proven useful
- during the early development of this project like [Semver][semver], for semantic versioning of releases and tags,
- [KISS][kiss], as a general guideline to prevent the commit of _huge_ files and _beast_ modules, and, finally,
- [TDD][tdd], as a principle for testing your code if you want to rely on a more pragmatic approach.
-
-Requirements
-------------
+## Requirements
   - A valid ROS installation (version Hydro, Indigo or later is suggested)
   - ROS joy package from ROS Joystick Drivers (`$ sudo apt-get install ros-<VERSION>-joy`)
   - Python 2.7+
   - Numpy 1.8+
   - Scipy 0.13+
 
-Run Simulator
----
+## Run Simulator
 
 1) Run vehicle simulator (this includes the navigation simulator, the vehicle pilot with simulation config and the path controller):
   ```
@@ -80,11 +63,8 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
   ```
   roslaunch vehicle_core path_controller.launch
   ```
- 
- 
   
-Run Real Operation
----
+## Run Real Operation
 1) Start Nessie A (use SSH on Nessie5A):
   ```
   roslaunch vehicle_core nessie_A_basic.launch
@@ -120,10 +100,23 @@ Run Real Operation
   ```
   rosservice call /pilot/switch "request: true"
   ```
+  
+## Guidelines
 
+Before attempting any modification to this repo please make sure thar:
+  - you are working on an up-to-date version of the `master` branch
+  - the previous working version of the repo has been tagged (`git tag --list` to check the tags)
+  - you have considered the option of creating a new branch for your feature (`git checkout -b <branch_name>` to create a new branch), after all this is the recommended approach!
+  - you know what are you doing!
+  
+Initially this repo is providing packages using the `rosbuild` build system until the OSL vehicles are migrated to an
+ upgraded version of the ROS. Later the rosbuild support is going to be dropped and the master branch will offer a
+ catkinized package format. The software development follows a couple of principles that have been proven useful
+ during the early development of this project like [Semver][semver], for semantic versioning of releases and tags,
+ [KISS][kiss], as a general guideline to prevent the commit of _huge_ files and _beast_ modules, and, finally,
+ [TDD][tdd], as a principle for testing your code if you want to rely on a more pragmatic approach.
 
-Credits
--------
+## Credits
 
 This work is part of **Nessie VIII AUV** project: *to boldly go where no robot has gone before!*
 
