@@ -39,6 +39,7 @@
 
 from __future__ import division
 
+import math
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
 
@@ -74,7 +75,7 @@ MODE_POSITION = 'position'
 MODE_PATH = 'path'
 
 # config
-DEFAULT_SPACING = 3.0       # meter
+DEFAULT_SPACING = 4.0       # meter
 
 
 class RVizInterface(object):
@@ -161,6 +162,11 @@ class RVizInterface(object):
 
         self.process_pose(pose)
 
+    def process_pose(self, pose):
+        if self.mode == MODE_POSITION:
+            self.send_position_req(pose)
+        else:
+            self.send_path_req(pose)
 
     def send_position_req(self, position):
         # user log
@@ -177,11 +183,19 @@ class RVizInterface(object):
         mode = 'fast'
         distance = tt.distance_between(self.pos, goal)
 
-        if distance <= 5.0:
+        if distance <= 8.0:
             mode = 'lines'
 
         # generate linear path
-        wps = tt.interpolate_leg(self.pos, goal, face_goal=True, spacing=DEFAULT_SPACING, dimensions=3)
+        #wps = tt.interpolate_leg(self.pos, goal, face_goal=True, spacing=DEFAULT_SPACING, dimensions=2)
+
+        # generate smooth path
+        p1 = (5.0, self.pos[5])
+        p2 = (5.0, goal[5])
+        steps = max(math.floor(distance / DEFAULT_SPACING), 100)
+
+        points = tt.format_bezier_input(self.pos, p1, p2, goal, degrees=False)
+        wps = tt.interpolate_bezier_cubic(points, steps=steps)
 
         # user log
         rospy.loginfo('%s: sending %s path request: %s', self.name, mode, goal)
@@ -192,16 +206,11 @@ class RVizInterface(object):
         msg.command = 'path'
         msg.points = [Vector6(wp) for wp in wps]
         msg.options = [
-            KeyValue('mode', mode)
+            KeyValue('mode', mode),
+            KeyValue('target_speed', '1.0'),
         ]
 
         self.pub_path.publish(msg)
-
-    def process_pose(self, pose):
-        if self.mode == MODE_POSITION:
-            self.send_position_req(pose)
-        else:
-            self.send_path_req(pose)
 
 
 if __name__ == '__main__':

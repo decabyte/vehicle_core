@@ -43,16 +43,15 @@ Tasks:
     - generate trajectories
     - produce dumps of trajectories for saving/sending (ie. JSON, CSV, ...)
 """
-
 from __future__ import division
 
 import datetime
 
 import numpy as np
 import scipy as sci
+import scipy.misc
 import matplotlib.pyplot as plt
 
-import scipy.misc
 np.set_printoptions(precision=3, suppress=True)
 
 from vehicle_core.util import conversions as cnv
@@ -173,9 +172,11 @@ def remove_repeated_points(trajectory):
     :return: trajectory with consecutive repeated points removed
     """
     unique_indices = [0]
+
     for i, point in enumerate(trajectory):
         if not np.allclose(point, trajectory[unique_indices[-1]]):
             unique_indices.append(i)
+
     return trajectory[unique_indices]
 
 
@@ -255,7 +256,6 @@ def plot_trajectory(points, show_orientation=True, **kwargs):
     ax.set_ylabel('North (m)')
 
     return fig, ax
-
 
 
 def interpolate_trajectory(points, spacing=10, spacing_dim=2, face_goal=False, **kwargs):
@@ -528,7 +528,7 @@ def interpolate_helix(centre, radius=5.0, height=2.0, loops=5.0, spacing=1.0, fa
     return points
 
 
-def format_bezier_input(start, p1, p2, end, degrees=False, **kwargs):
+def format_bezier_input(start, P1, P2, end, degrees=False, **kwargs):
     """Generates input points for interpolate_bezier functions out of user-friendly description of the points.
 
     :param start: standard waypoint, numpy array of shape (6)
@@ -538,19 +538,18 @@ def format_bezier_input(start, p1, p2, end, degrees=False, **kwargs):
     :param degrees: True for input in degrees
     :return: array (4, 6) of cartesian waypoints that can be passed to bezier interpolation
     """
-    P1 = p1.astype(float)
-    P2 = p2.astype(float)
     if degrees is True:
         P1[1] = np.deg2rad(P1[1])
         P2[1] = np.deg2rad(P2[1])
 
     P = np.zeros((4, 6))
+
     P[0] = start
     P[1, 0:2] = start[0:2] + pol2cart(*P1)
     P[2, 0:2] = end[0:2] - pol2cart(*P2)
     P[3] = end
-    return P
 
+    return P
 
 def interpolate_bezier(points, steps=100, **kwargs):
     """Generates an array of waypoints which lie on a 2D Bezier curve described by n (x, y) points. The trajectory is
@@ -579,19 +578,29 @@ def interpolate_bezier(points, steps=100, **kwargs):
     # t_1_pow = np.power(np.tile(t-1, (1, 6)), np.tile(r, (steps, 1)))
     # t_pow = np.power(np.tile(t, (1, 6)), np.tile(r, (steps, 1)))
     # etc
+
     for i in xrange(n+1):
-        B[:, 0:2] += sci.misc.comb(n, i) * np.dot(((1-t)**(n-i) * t**i).reshape(100, 1), points[i, 0:2].reshape((1, 2)))
+        e1 = ((1-t)**(n-i) * t**i).reshape(steps, 1)
+        e2 = points[i, 0:2].reshape((1, 2))
+
+        B[:, 0:2] += sci.misc.comb(n, i) * np.dot(e1, e2)
         # coef = sci.misc.comb(n, i)
         # B[:, 0] += coef * (1-t)**(n-i) * t**i * points[i, 0]
         # B[:, 1] += coef * (1-t)**(n-i) * t**i * points[i, 1]
+
     B[:, 2] = np.linspace(points[0, 2], points[-1, 2], steps)
     B[:, 3:5] = 0
+
+    # calculate the xy slope at each point of the curve
     der_x = np.diff(B[:, 0])
     der_y = np.diff(B[:, 1])
-    B[1:, 5] = np.arctan2(der_y, der_x)
-    B[0] = points[0]
-    return B
 
+    B[1:, 5] = np.arctan2(der_y, der_x)
+
+    # add the initial point
+    B[0, :] = points[0]
+
+    return B
 
 def interpolate_bezier_cubic(points, steps=100, **kwargs):
     """Equivalent to interpolate_bezier with 4 input points (degree 3)
@@ -611,6 +620,7 @@ def interpolate_bezier_cubic(points, steps=100, **kwargs):
     # calculate the xy slope at each point of the curve
     der_x = np.diff(B[:, 0])
     der_y = np.diff(B[:, 1])
+
     B[1:, 5] = np.arctan2(der_y, der_x)
 
     return B
