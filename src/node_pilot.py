@@ -294,11 +294,11 @@ class VehiclePilot(object):
         if self.optimal_allocation and ALLOCATION_AVAILABLE:
             # instantiate the optimal allocator
             self.opt_alloc = optimal_thrust.OptimalThrustAllocator(self.local_TAM)
-            rospy.loginfo('%s: optimal allocation enabled ...', self.name)
+            rospy.logdebug('%s: optimal allocation enabled ...', self.name)
         else:
             # disable allocator if previously enabled
             self.opt_alloc = None
-            rospy.loginfo('%s: optimal allocation disabled ...', self.name)
+            rospy.logdebug('%s: optimal allocation disabled ...', self.name)
 
         # high speed and low speed manoeuvring range
         self.thres_fast_speed = np.clip( float(pilot_config.get('threshold_fast', 1.0)), 0.50, 2.00 )

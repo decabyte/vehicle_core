@@ -52,7 +52,9 @@ roslib.load_manifest('vehicle_core')
 
 # msgs and services
 from diagnostic_msgs.msg import KeyValue
-from visualization_msgs.msg import Marker, MarkerArray
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Point
+from std_msgs.msg import ColorRGBA
 
 from auv_msgs.msg import NavSts
 from vehicle_interface.msg import PilotRequest, PathRequest, PathStatus
@@ -119,8 +121,8 @@ class PathController(object):
         self.name = name
 
         # state
-        self.rate_node = 1.0 / RATE_NODE
-        self.rate_status = 1.0 / RATE_STATUS
+        self.ts_node = 1.0 / RATE_NODE
+        self.ts_status = 1.0 / RATE_STATUS
 
         self.state = S_RESET
         self.t0 = rospy.Time.now().to_sec()
@@ -172,14 +174,14 @@ class PathController(object):
 
         # user related
         self.visualization = True
-        self.pub_vis = rospy.Publisher(TOPIC_VIS, MarkerArray, queue_size=1, latch=True)
+        self.pub_vis = rospy.Publisher(TOPIC_VIS, Marker, queue_size=1, latch=True)
 
         # services
         self.srv_controller = rospy.ServiceProxy(SRV_CONTROLLER, BooleanService)
         self.srv_path = rospy.Service(SRV_PATH_CONTROL, PathService, self.handle_path_srv)
 
         # timers
-        self.t_path_status = rospy.Timer(rospy.Duration(self.rate_status), self.publish_path_status)
+        self.t_path_status = rospy.Timer(rospy.Duration(self.ts_status), self.publish_path_status)
 
 
     def loop(self):
@@ -199,7 +201,7 @@ class PathController(object):
             self.send_position_request()        # maybe send a stay request?
         else:
             if self.hover_timeout > 0:
-                self.hover_timeout -= self.rate_node
+                self.hover_timeout -= self.ts_node
                 self.send_position_request()    # maybe send a stay request?
             else:
                 rospy.logwarn('%s: hover timeout expired, resetting pilot ...', self.name)
@@ -266,11 +268,10 @@ class PathController(object):
 
             res = self.act_on_command[cmd](**packed_request)
 
+            # automatically start the new path
             if res.get('path_id', None) != None:
-                rospy.loginfo('%s: starting path from request with id: %s', self.name, res['path_id'])
-
-                # autostart the new path
                 self.cmd_start()
+                # rospy.loginfo('%s: starting path from request with id: %s', self.name, res['path_id'])
 
         except Exception:
             tb = traceback.format_exc()
@@ -312,7 +313,7 @@ class PathController(object):
     def cmd_start(self, **kwargs):
         try:
             response = self.srv_controller.call(True)
-            rospy.loginfo('%s: switching on controller: %s', self.name, response)
+            rospy.logdebug('%s: switching on controller: %s', self.name, response)
 
             self.state = S_RUNNING
             self.path_status = P_RUNNING
@@ -364,7 +365,7 @@ class PathController(object):
             self.publish_path_status()
 
             response = self.srv_controller.call(False)
-            rospy.loginfo('%s: switching off controller: %s', self.name, response)
+            rospy.logdebug('%s: switching off controller: %s', self.name, response)
         except rospy.ServiceException:
             tb = traceback.format_exc()
             rospy.logwarn('%s: controller service error:\n%s', self.name, tb)
@@ -412,7 +413,7 @@ class PathController(object):
             self.path_id += 1
             self.path_time_start = rospy.Time().now().to_sec()
 
-            rospy.loginfo('%s: new path accepted [%d] with timeout %s', self.name, self.path_id, self.path_timeout)
+            rospy.loginfo('%s: new path accepted [id: %d] with timeout %.2f', self.name, self.path_id, self.path_timeout)
             #rospy.loginfo('%s: path to follow:\n%s', self.name, self.path_obj.points)
         except KeyValue:
             rospy.logerr('%s: unknown path mode: %s', self.name, self.path_mode)
@@ -490,52 +491,40 @@ class PathController(object):
 
     def publish_markers(self):
         if self.path_obj is None:
-            return
-
-        ma = MarkerArray()
-        ma.markers = []
-
-        for n, point in enumerate(self.path_obj.points):
             mm = Marker()
             mm.header.stamp = rospy.Time.now()
             mm.header.frame_id = 'map'
             mm.ns = 'current_path'
-            mm.id = n
-            mm.type = Marker.SPHERE
-            mm.action = Marker.ADD
+            mm.action = Marker.DELETE
 
-            mm.pose.position.x = point[0]
-            mm.pose.position.y = -point[1]
-            mm.pose.position.z = -point[2]
-            mm.pose.orientation.x = 0.0
-            mm.pose.orientation.y = 0.0
-            mm.pose.orientation.z = 0.0
-            mm.pose.orientation.w = 1.0
-            mm.scale.x = 0.2
-            mm.scale.y = 0.2
-            mm.scale.z = 0.2
+            self.pub_vis.publish(mm)
+            return
+
+        mm = Marker()
+        mm.header.stamp = rospy.Time.now()
+        mm.header.frame_id = 'map'
+        mm.ns = 'current_path'
+        mm.id = self.path_id
+        mm.action = Marker.ADD
+        mm.lifetime = rospy.Duration(self.ts_status * 2)
+
+        mm.type = Marker.LINE_STRIP
+        mm.scale.x = 0.1
+        mm.color.a = 1.0
+
+        for n, wps in enumerate(self.path_obj.points):
+            mm.points.append(Point(wps[0], -wps[1], -wps[2]))
 
             if n == self.path_obj.cnt:
-                mm.color.r = 0.75
-                mm.color.g = 0.75
-                mm.color.b = 0.75
+                mm.colors.append(ColorRGBA(0.75, 0.75, 0.75, 1.00))
             elif n == self.path_obj.cnt + 1:
-                mm.color.r = 0.75
-                mm.color.g = 0.75
-                mm.color.b = 0.0
+                mm.colors.append(ColorRGBA(0.75, 0.75, 0.00, 1.00))
             elif n > self.path_obj.cnt:
-                mm.color.r = 1.0
-                mm.color.g = 0.0
-                mm.color.b = 0.0
+                mm.colors.append(ColorRGBA(1.00, 0.00, 0.00, 1.00))
             else:
-                mm.color.r = 0.0
-                mm.color.g = 1.0
-                mm.color.b = 0.0
+                mm.colors.append(ColorRGBA(0.00, 1.00, 0.00, 1.00))
 
-            mm.color.a = 1.0
-            ma.markers.append(mm)
-
-        self.pub_vis.publish(ma)
+        self.pub_vis.publish(mm)
 
 
 # MAIN
