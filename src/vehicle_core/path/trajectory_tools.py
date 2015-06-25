@@ -577,13 +577,13 @@ def interpolate_bezier(points, steps=100, **kwargs):
     # coefs = sci.misc.comb(n, r)
     # t_1_pow = np.power(np.tile(t-1, (1, 6)), np.tile(r, (steps, 1)))
     # t_pow = np.power(np.tile(t, (1, 6)), np.tile(r, (steps, 1)))
-    # etc
 
     for i in xrange(n+1):
-        e1 = ((1-t)**(n-i) * t**i).reshape(steps, 1)
+        e1 = ((1-t)**(n-i) * t**i).reshape((steps, 1))
         e2 = points[i, 0:2].reshape((1, 2))
 
         B[:, 0:2] += sci.misc.comb(n, i) * np.dot(e1, e2)
+
         # coef = sci.misc.comb(n, i)
         # B[:, 0] += coef * (1-t)**(n-i) * t**i * points[i, 0]
         # B[:, 1] += coef * (1-t)**(n-i) * t**i * points[i, 1]
@@ -594,7 +594,6 @@ def interpolate_bezier(points, steps=100, **kwargs):
     # calculate the xy slope at each point of the curve
     der_x = np.diff(B[:, 0])
     der_y = np.diff(B[:, 1])
-
     B[1:, 5] = np.arctan2(der_y, der_x)
 
     # add the initial point
@@ -620,7 +619,6 @@ def interpolate_bezier_cubic(points, steps=100, **kwargs):
     # calculate the xy slope at each point of the curve
     der_x = np.diff(B[:, 0])
     der_y = np.diff(B[:, 1])
-
     B[1:, 5] = np.arctan2(der_y, der_x)
 
     return B

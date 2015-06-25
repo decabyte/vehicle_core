@@ -6,55 +6,76 @@ import sys
 sys.path.append('../src')
 
 import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+import scipy as sci
+import scipy.interpolate
+
 np.set_printoptions(precision=3, suppress=True)
+mpl.style.use('bmh')
+
 
 from vehicle_core.path.trajectory_tools import *
 
 
-def demo_bezier(points, **kwargs):
-    """Demonstrates the performance of interpolate_bezier function. Displays input points, interpolated
-    trajectory and orientation at each point.
+def bspline_interpolation(points, steps=100, k=3, **kwargs):
+    """Interpolate trajectory using the bspline interpolation of grade k.
 
-    :param points:  input for the interpolate_bezier function
-    :return: None
+    :param points: supporting points for bspline interpolation
+    :param steps: number of waypoint to generate
+    :return: wps, numpy array (steps, 6)
     """
-    # generate trajectory
-    traj = interpolate_bezier(points, **kwargs)
+    wps = np.zeros((steps, 6))
+    wps[:, 1] = np.linspace(points[0, 1], points[-1, 1], steps)
 
-    # plot trajectory and add support points
-    fig, ax = plot_trajectory(traj, show_orientation=False)
-    ax.plot(points[:, 1], points[:, 0], 'ob')
+    tck = sci.interpolate.splrep(points[:, 1], points[:, 0], k=k)
+    wps[:, 0] = sci.interpolate.splev(wps[:, 1], tck)
+
+    # calculate the xy slope at each point of the curve
+    der_x = np.diff(wps[:, 0])
+    der_y = np.diff(wps[:, 1])
+    wps[1:, 5] = np.arctan2(der_y, der_x)
+
+    return wps
+
+
+def plot_dof_trajectory(wps, dof=0):
+    # speed and accelerations
+    vel = np.zeros_like(wps)
+    acc = np.zeros_like(wps)
+    jrk = np.zeros_like(wps)
+
+    vel[1:, :] = np.diff(wps, axis=0)
+    acc[1:, :] = np.diff(vel, axis=0)
+    jrk[1:, :] = np.diff(acc, axis=0)
+
+    fig, ax = plt.subplots()
+    ax.plot(vel[:, dof], label='velocity')
+    ax.plot(acc[:, dof], label='acceleration')
+    ax.plot(jrk[:, dof], label='jerk')
+
+    ax.legend(loc='best')
 
     return fig, ax
 
-    # fig, ax = plt.subplots()
-    # ax.plot(aspect='equal')
-    # ax.plot(points[:, 1], points[:, 0], 'or')
-    # ax.plot(traj[:, 1], traj[:, 0], 'g')
-    #
-    # r = np.ones(traj.shape[0])     # use a fixed value for arrow length
-    # th = -traj[:, 5] + (np.pi / 2)                 # convert from navigation angles
-    # x, y = pol2cart(r, th)
-    #
-    # for n in xrange(traj.shape[0]):
-    #     ax.arrow(traj[n,1], traj[n,0], x[n], y[n], fc="k", ec="k", head_width=0.05, head_length=0.1)
-    #
-    # plt.axis([-15, 15, -20, 10])
-    #
-    # ax.grid()
-    # plt.show()
 
 def main():
-    # test one
-    points = format_bezier_input(
-        start=np.array([0, 0, 0, 0, 0, 0]),
-        p1=np.array([5, 50]),
-        p2=np.array([5, 50]),
-        end=np.array([0, 10, 0, 0, 0, 0]),
-        degrees=True
-    )
 
-    fig, ax = demo_bezier(points)
+    # # test one
+    # points = format_bezier_input(
+    #     start=np.array([0, 0, 0, 0, 0, 0]),
+    #     P1=np.array([5, 50]),
+    #     P2=np.array([5, 50]),
+    #     end=np.array([0, 10, 0, 0, 0, 0]),
+    #     degrees=True,
+    # )
+    #
+    # wps = interpolate_bezier(points)
+    #
+    # # plot trajectory and add support points
+    # fig, ax = plot_trajectory(wps, show_orientation=False)
+    # ax.plot(points[:, 1], points[:, 0], 'ob')
 
     # test two
     points = np.array([
@@ -67,20 +88,23 @@ def main():
 
     ])
 
-    fig, ax = demo_bezier(points)
+    wps = interpolate_bezier(points)
 
-    # bspline interpolation
-    import scipy as sci
-    import scipy.interpolate
+    # plot trajectory and add support points
+    fig, ax = plot_trajectory(wps, show_orientation=True)
+    ax.plot(points[:, 1], points[:, 0], 'ob')
 
-    n = 100.0
-    trj = np.zeros((n, 6))
-    trj[:, 1] = np.linspace(points[0, 1], points[-1, 1], n)
+    #plot_dof_trajectory(wps)
 
-    tck = sci.interpolate.splrep(points[:, 1], points[:, 0], k=3)
-    trj[:, 0] = sci.interpolate.splev(trj[:, 1], tck)
 
-    fig, ax = plot_trajectory(trj)
+    # test three
+    wps = bspline_interpolation(points, k=3)
+
+    fig, ax = plot_trajectory(wps, show_orientation=True)
+    ax.plot(points[:, 1], points[:, 0], 'ob')
+
+    #plot_dof_trajectory(wps)
+
 
     # show plots
     plt.show()
