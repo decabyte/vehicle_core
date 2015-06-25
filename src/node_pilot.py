@@ -235,6 +235,7 @@ class VehiclePilot(object):
         self.sub_pos_req = rospy.Subscriber(TOPIC_POS_REQ, PilotRequest, self.handle_pos_req, tcp_nodelay=True, queue_size=1)
         self.sub_body_req = rospy.Subscriber(TOPIC_BODY_REQ, PilotRequest, self.handle_body_req, tcp_nodelay=True, queue_size=1)
         self.sub_vel_req = rospy.Subscriber(TOPIC_VEL_REQ, PilotRequest, self.handle_vel_req, tcp_nodelay=True, queue_size=1)
+        self.sub_stay_req = rospy.Subscriber(TOPIC_STAY_REQ, PilotRequest, self.handle_stay_req, tcp_nodelay=True, queue_size=1)
 
         # services
         self.s_switch = rospy.Service(SRV_SWITCH, BooleanService, self.srv_switch)
@@ -344,7 +345,7 @@ class VehiclePilot(object):
         self.lim_vel_ctrl = self.max_speed
 
 
-    # s\afety switch service
+    # safety switch service
     def srv_switch(self, req):
         """This function handles the switch service.
 
@@ -393,7 +394,6 @@ class VehiclePilot(object):
 
         rospy.logdebug('%s: set controller speed limits: %s', self.name, self.lim_vel_ctrl)
         return FloatServiceResponse(result=True, response=self.lim_vel_ctrl.tolist())
-
 
     # adative fault control
     def srv_fault_ctrl(self, data):
@@ -446,6 +446,7 @@ class VehiclePilot(object):
         # limit user input
         self.tau_user = np.clip(user_input, -tc.MAX_U, tc.MAX_U)
 
+    # TODO: prevent zero or missing nav data to mess with the pilot node!
     def handle_nav(self, data):
         # parse navigation data
         self.pos = np.array([
@@ -469,7 +470,6 @@ class VehiclePilot(object):
         # populate errors (used for info only)
         self.err_pos = self.pos - self.des_pos
         self.err_vel = self.vel - self.des_vel
-        # TODO: prevent zero or missing nav data to mess with the pilot node!
 
 
     def _check_inputs(self):
@@ -553,6 +553,16 @@ class VehiclePilot(object):
         except Exception:
             tb = traceback.format_exc()
             rospy.logerr('%s: bad velocity request\n%s', self.name, tb)
+
+    def handle_stay_req(self, data):
+        self.des_pos = self.pos
+        self.des_vel = np.zeros(6)
+
+        # ignore disabled axis
+        self.disable_axis_user = np.array(data.disable_axis)
+
+        self._check_inputs()
+        self.ctrl_mode = vc.MODE_POSITION
 
 
 
