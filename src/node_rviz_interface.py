@@ -180,22 +180,22 @@ class RVizInterface(object):
 
     def send_path_req(self, goal):
         # path info
-        mode = 'fast'
         distance = tt.distance_between(self.pos, goal)
 
         if distance <= 8.0:
+            # generate linear path
             mode = 'lines'
+            wps = tt.interpolate_leg(self.pos, goal, face_goal=True, spacing=DEFAULT_SPACING, dimensions=2)
+        else:
+            # generate smooth path
+            mode = 'fast'
 
-        # generate linear path
-        #wps = tt.interpolate_leg(self.pos, goal, face_goal=True, spacing=DEFAULT_SPACING, dimensions=2)
+            p1 = (5.0, self.pos[5])
+            p2 = (5.0, goal[5])
+            steps = max(math.floor(distance / DEFAULT_SPACING), 100)
 
-        # generate smooth path
-        p1 = (5.0, self.pos[5])
-        p2 = (5.0, goal[5])
-        steps = max(math.floor(distance / DEFAULT_SPACING), 100)
-
-        points = tt.format_bezier_input(self.pos, p1, p2, goal, degrees=False)
-        wps = tt.interpolate_bezier_cubic(points, steps=steps)
+            points = tt.format_bezier_input(self.pos, p1, p2, goal, degrees=False)
+            wps = tt.interpolate_bezier_cubic(points, steps=steps)
 
         # user log
         rospy.loginfo('%s: sending %s path request: %s', self.name, mode, goal)
@@ -208,6 +208,7 @@ class RVizInterface(object):
         msg.options = [
             KeyValue('mode', mode),
             KeyValue('target_speed', '1.0'),
+            KeyValue('look_ahead', '1.0'),
         ]
 
         self.pub_path.publish(msg)

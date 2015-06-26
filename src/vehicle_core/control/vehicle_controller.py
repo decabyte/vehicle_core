@@ -53,6 +53,14 @@ MODE_STATION = 2
 
 MAX_PITCH = np.deg2rad(60)  # max pitch (rad)
 
+CONSOLE_STATUS = """controller:
+  pos: %s
+  des_p: %s
+  vel: %s
+  des_v: %s
+  mode: %s
+"""
+
 
 class VehicleController(object):
     """VehicleController class wraps the low-level control logic.
@@ -89,13 +97,7 @@ class VehicleController(object):
         return np.zeros(6)
 
     def __str__(self):
-        return """controller:
-          pos: %s
-          des_p: %s
-          vel: %s
-          des_v: %s
-          mode: %s
-        """ % (
+        return CONSOLE_STATUS % (
             self.pos, self.des_pos, self.vel, self.des_vel, self.ctrl_mode
         )
 

@@ -41,6 +41,8 @@ from __future__ import division
 
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
+np.set_printoptions(formatter={'float': '{: 0.3f}'.format})
+# see: http://stackoverflow.com/questions/2891790/pretty-printing-of-numpy-array
 
 import vehicle_controller as vc
 
@@ -70,8 +72,8 @@ class HydridController(vc.VehicleController):
         super(HydridController, self).__init__(dt, ctrl_config, **kwargs)
 
         # init params
-        self.k1 = 1.0
-        self.k2 = 0.1
+        self.kpos = np.zeros_like(self.pos)
+        self.kposprev = np.zeros_like(self.pos)
         self.lim_pos = np.ones_like(self.pos) * HYBRID_LIM_POS
 
         # state
@@ -99,9 +101,10 @@ class HydridController(vc.VehicleController):
 
     def update_config(self, ctrl_config, model_config):
         # sliding mode
-        self.k1 = ctrl_config['k1']
-        self.k1 = ctrl_config['k2']
-        self.lim_pos = ctrl_config['lim_pos']
+        self.kpos = np.array(ctrl_config['kpos'])
+        self.kposprev = np.array(ctrl_config['kposprev'])
+        self.kgamma = np.array(ctrl_config['kgamma'])
+        self.lim_pos = np.array(ctrl_config['lim_pos'])
 
         # pid parameters (velocity)
         self.vel_Kp = np.array([
@@ -166,9 +169,6 @@ class HydridController(vc.VehicleController):
         # update request position
         self.des_pos_prev = self.des_pos
 
-        # virtual position
-        self.virtual_pos = self.delta_pos - (self.k2 * self.err_pos_prev) - (self.k2 * self.err_pos) - self.gamma
-
         # neuronal approach
         # ...
 
@@ -183,27 +183,34 @@ class HydridController(vc.VehicleController):
         # ...
 
         # sliding surface
-        self.sigma_pos = self.err_pos_dot - (self.k1 * self.err_pos) + (self.k2 * self.err_pos_prev)
+        self.sigma_pos = self.err_pos_dot - self.err_pos + (self.kposprev * self.err_pos_prev)
 
         # sliding surface with neuron
         # ...
 
         # anti-chattering
-        self.gamma = self.k1 * np.tanh(0.5 * self.sigma_pos)
+        self.gamma = self.kgamma * np.tanh(0.5 * self.sigma_pos)
+
+        # virtual position
+        self.virtual_pos = self.delta_pos - (self.kpos * self.err_pos) - (self.kposprev * self.err_pos_prev) - self.gamma
 
         # update sliding surface for yaw
-        a = np.arctan2(self.virtual_pos[1], self.virtual_pos[0])
-        c = cnv.wrap_pi( cnv.wrap_pi(a) - cnv.wrap_pi(self.pos[5]) )
-
-        self.gamma[5] = self.k1 * np.tanh(0.5 * c)
-
+        a = np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5]
+        self.gamma[5] = self.kgamma[5] * np.tanh(0.5 * cnv.wrap_pi(a))
 
         # calculate required velocity
         self.req_vel = np.zeros_like(self.vel)
-        d = cnv.wrap_pi( cnv.wrap_pi(a) + cnv.wrap_pi(-self.pos[5] - self.gamma[5]) ) / self.dt
+        d = (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5]) / self.dt
 
         self.req_vel[0] = np.linalg.norm(self.virtual_pos[0:2]) / self.dt
-        self.req_vel[5] = np.tanh(0.5 * d)
+        self.req_vel[5] = np.tanh(0.5 * cnv.wrap_pi(d))
+
+        # TESTED also with:
+        #self.req_vel[5] = np.tanh(0.5 * cnv.wrap_pi(a))
+
+        #print('a: %s' % np.rad2deg(cnv.wrap_pi(a)))
+        #print('v: %s' % self.req_vel[5])
+        #print('vpos: %s\ngamma: %s\nreqv: %s' % (self.virtual_pos, self.gamma, self.req_vel))
 
         # save old error
         self.err_pos_prev = self.err_pos

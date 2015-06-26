@@ -47,7 +47,10 @@ from vehicle_core.config import thrusters_config as tc
 from vehicle_core.model import thruster_model as tm
 from vehicle_core.model import dynamic_model as dm
 from vehicle_core.control import thrust_allocation as ta
+
 from vehicle_core.control import vehicle_controller as vc
+from vehicle_core.control import hybrid_controller as hc
+
 from vehicle_core.util import conversions as cnv
 
 import rospy
@@ -114,7 +117,7 @@ SRV_FAULT_CTRL = 'pilot/fault_control'          # enable/disable the adaptive fa
 
 # optimal allocation (enabled only if available on the platform)
 try:
-    from vehicle_core.control import optimal_thrust
+    from vehicle_core.control import thrust_optimal as to
     ALLOCATION_AVAILABLE = True
 except ImportError:
     ALLOCATION_AVAILABLE = False
@@ -293,7 +296,7 @@ class VehiclePilot(object):
 
         if self.optimal_allocation and ALLOCATION_AVAILABLE:
             # instantiate the optimal allocator
-            self.opt_alloc = optimal_thrust.OptimalThrustAllocator(self.local_TAM)
+            self.opt_alloc = to.OptimalThrustAllocator(self.local_TAM)
             rospy.logdebug('%s: optimal allocation enabled ...', self.name)
         else:
             # disable allocator if previously enabled
@@ -330,6 +333,8 @@ class VehiclePilot(object):
                 self.controller = vc.CascadedController(self.dt, self.ctrl_config, self.model_config, lim_vel=self.max_speed)
             elif self.ctrl_type == 'autotuning':
                 self.controller = vc.AutoTuningController(self.dt, self.ctrl_config, self.model_config, lim_vel=self.max_speed)
+            elif self.ctrl_type == 'hybrid':
+                self.controller = hc.HydridController(self.dt, self.ctrl_config, self.model_config, lim_vel=self.max_speed)
             else:
                 rospy.logfatal('controller type [%s] not supported', self.ctrl_type)
                 raise ValueError('controller type [%s] not supported', self.ctrl_type)
