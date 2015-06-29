@@ -1,9 +1,22 @@
 <launch>
 
+    <!-- default args -->
+    <arg name="use_hmi" default="false" />
+    <arg name="use_uwsim" default="false" />
+
     <!-- rviz -->
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find vehicle_core)/conf/nav_sim.rviz"/>
 
     <!-- uwsim -->
-    <!--<include file="$(find osl_uwsim_scenario)/launch/uwsim_single.launch"/>-->
+    <group if="$(arg use_uwsim)">
+        <include file="$(find osl_uwsim_scenario)/launch/uwsim_single.launch"/>
+    </group>
+
+    <!-- rviz interface -->
+    <group if="$(arg use_hmi)">
+        <node name="rviz_interface" pkg="vehicle_core" type="node_rviz_interface.py" args="" output="screen">
+            <param name="mode" value="path"/>
+        </node>
+    </group>
 
 </launch>
