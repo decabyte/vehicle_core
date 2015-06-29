@@ -1,17 +1,19 @@
 <launch>
 
     <!-- default args -->
-    <arg name="use_gui" default="False" />
-    <arg name="nav_verbose" default="False" />
-    <arg name="pilot_verbose" default="False" />
+    <arg name="use_gui" default="false" />
+    <arg name="nav_verbose" default="false" />
+    <arg name="pilot_verbose" default="false" />
+    <arg name="ctrl_config" default="pid_sim.yaml" />
 
     <!-- includes -->
     <include file="$(find vehicle_core)/launch/nav_sim.launch">
         <arg name="verbose" value="$(arg nav_verbose)"/>
     </include>
 
-    <include file="$(find vehicle_core)/launch/pilot_sim.launch">
+    <include file="$(find vehicle_core)/launch/pilot.launch">
         <arg name="verbose" value="$(arg pilot_verbose)"/>
+        <arg name="ctrl_config" value="$(arg ctrl_config)" />
     </include>
 
     <include file="$(find vehicle_core)/launch/path_controller.launch"/>

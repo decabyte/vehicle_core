@@ -65,19 +65,19 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
   ```
   
 ## Run Real Operation
-1) Start Nessie A (use SSH on Nessie5A):
+1) Start Nessie A (use SSH on NessieA):
   ```
   roslaunch vehicle_core nessie_A_basic.launch
   ```
   
-2) Start Nessie B (use SSH on Nessie5B):
+2) Start Nessie B (use SSH on NessieB):
   ```
   roslaunch vehicle_core nessie_B_basic.launch
   ```
   
 3) On Trieste (or any external laptop) start the joystick driver:
   ```
-  roslaunch vehicle_core joystick_js0.launch
+  roslaunch vehicle_core joystick.launch
   ```
   
 3b) Optional set the vehicle compass to use an artificial north (offset):
@@ -91,12 +91,12 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
   rosrun auv_nav auv_nav
   ```
 
-6) Optional visualization (on Trieste or external laptop run):
+5) Optional visualization (on Trieste or external laptop run):
   ```
-  roslaunch vehicle_core nav_visual_nessie.launch
+  roslaunch vehicle_core nav_visual.launch
   ```
   
-7) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
+6) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
   ```
   rosservice call /pilot/switch "request: true"
   ```

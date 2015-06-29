@@ -1,0 +1,22 @@
+<launch>
+
+    <!-- default args -->
+    <arg name="verbose" default="true" />
+    <arg name="topic_output" default="thrusters/commands" />
+    <arg name="ctrl_config" default="pid_sim.yaml" />
+
+    <!-- load the pilot config -->
+    <rosparam command="load" file="$(find vehicle_core)/conf/pilot_config.yaml"/>
+    <rosparam command="load" file="$(find vehicle_core)/conf/vehicle_model.yaml"/>
+
+    <!-- load the controller config -->
+    <rosparam command="load" file="$(find vehicle_core)/conf/$(arg ctrl_config)" />
+
+    <!-- start the vehicle controller -->
+    <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" output="screen">
+        <!-- redirect output -->
+        <param name="topic_output" value="$(arg topic_output)"/>
+        <param name="verbose" value="$(arg verbose)" type="bool"/>
+    </node>
+
+</launch>

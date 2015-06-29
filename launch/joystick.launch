@@ -1,4 +1,7 @@
 <launch>
+    <!-- joystick device:  -->
+    <!--    this can be one of /dev/input/js0 or /dev/input/js1 according to the number of HID devices connected -->
+    <arg name="dev" default="/dev/input/js0" />
 
     <!-- joystick input node -->
     <node name="joystick_input" pkg="joy" type="joy_node" respawn="false">
@@ -6,7 +9,7 @@
             Input device for joystick.
             Default: /dev/input/js1
         -->
-        <param name="dev" type="string" value="/dev/input/js1"/>
+        <param name="dev" type="string" value="$(arg dev)"/>
 
         <!--
             Output is zero for axis in deadzone.
@@ -36,7 +39,7 @@
     <node name="nessie_joystick" pkg="vehicle_core" type="node_joystick.py" respawn="false" output="screen">
         <!--input topic for joystick messages-->
         <param name="input_topic" type="string" value="joy"/>
-        <param name="wait_services" type="boolean" value="false"/>
+        <param name="wait_services" type="boolean" value="true"/>
     </node>
 
 </launch>
