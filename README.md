@@ -16,90 +16,81 @@ Detailed documentation can be found in the [docs](docs) folder of this repo.
 ## Run Simulator
 
 1) Run vehicle simulator (this includes the navigation simulator, the vehicle pilot with simulation config and the path controller):
-  ```
-  roslaunch vehicle_core simulator.launch use_gui:=true
-  ```
+
+    roslaunch vehicle_core simulator.launch use_gui:=true
+
   
 2) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
-  ```
-  rosservice call /pilot/switch "request: true"
-  ```
+
+    rosservice call /pilot/switch "request: true"
   
 3) Send a command to the pilot using the command-line (i.e. move the vehile to zero position):
-  ```
-  rostopic pub /pilot/position_req vehicle_interface/PilotRequest "position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
-  ```
 
-Extra: For testing the path controller please use any of the path scripts included in this package:
-  ```
-  vehicle_core/tests/pp_lines_path.sh
-  vehicle_core/scripts/path_cli.sh start
-  ```
-  
-Extra: Use a different control law, run this instead of `pilot_sim.launch`:
-  ```
-  MODEL=1 roslaunch vehicle_core simulator.launch use_gui:=true
-  AUTO=1 roslaunch vehicle_core simulator.launch use_gui:=true
-  ```
+    rostopic pub /pilot/position_req vehicle_interface/PilotRequest "position: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"
+    
+### Customization
+
+To use a different control law, run:
+
+    roslaunch vehicle_core simulator.launch use_gui:=true ctrl_config:=pid_sim_model.yaml
+
+where `pid_sim_model.yaml` is one of the controller configuration files you can find in the `conf` directory.
+
+To the path controller please use any of the path scripts included in this package:
+
+    vehicle_core/tests/pp_lines_path.sh
+    vehicle_core/scripts/path_cli.sh start
+
   
 Behind the scenes the simulation.launch scripts is running the following nodes:
  
 1) Run the navigation simulator
-  ```
-  roslaunch vehicle_core nav_sim.launch
-  ```
+
+    roslaunch vehicle_core nav_sim.launch
 
 2) Run vehicle controller
-  ```
-  roslaunch vehicle_core pilot_sim.launch
-  ```
+
+    roslaunch vehicle_core pilot_sim.launch
 
 3) Run visualization
-  ```
-  roslaunch vehicle_core nav_visual.launch
-  ```
+
+    roslaunch vehicle_core nav_visual.launch
 
 4) Run the path controller:
-  ```
-  roslaunch vehicle_core path_controller.launch
-  ```
+
+    roslaunch vehicle_core path_controller.launch
+
   
 ## Run Real Operation
 1) Start Nessie A (use SSH on NessieA):
-  ```
-  roslaunch vehicle_core nessie_A_basic.launch
-  ```
+
+    roslaunch vehicle_core nessie_A_basic.launch
   
 2) Start Nessie B (use SSH on NessieB):
-  ```
-  roslaunch vehicle_core nessie_B_basic.launch
-  ```
+
+    roslaunch vehicle_core nessie_B_basic.launch
   
 3) On Trieste (or any external laptop) start the joystick driver:
-  ```
-  roslaunch vehicle_core joystick.launch
-  ```
+
+    roslaunch vehicle_core joystick.launch
   
 3b) Optional set the vehicle compass to use an artificial north (offset):
-  ```
-  rosparam set /conf/tcm/artificial_north 0.0
-  ```
+
+    rosparam set /conf/tcm/artificial_north 0.0
   
 4) On Nessie A (after getting a correct initial position):
-  ```
-  roslaunch vehicle_core pilot_real.launch
-  rosrun auv_nav auv_nav
-  ```
+
+    roslaunch vehicle_core pilot_real.launch
+    rosrun auv_nav auv_nav
 
 5) Optional visualization (on Trieste or external laptop run):
-  ```
-  roslaunch vehicle_core nav_visual.launch
-  ```
+    
+    roslaunch vehicle_core nav_visual.launch
   
 6) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
-  ```
-  rosservice call /pilot/switch "request: true"
-  ```
+
+    rosservice call /pilot/switch "request: true"
+
   
 ## Guidelines
 
