@@ -208,7 +208,7 @@ class RVizInterface(object):
         msg.options = [
             KeyValue('mode', mode),
             KeyValue('target_speed', '1.0'),
-            KeyValue('look_ahead', '1.0'),
+            KeyValue('look_ahead', '5.0'),
         ]
 
         self.pub_path.publish(msg)
