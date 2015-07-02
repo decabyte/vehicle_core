@@ -159,6 +159,7 @@ class PathController(object):
         self.act_on_command = {
             'start': self.cmd_start,
             'pause': self.cmd_hover,
+            'hover': self.cmd_hover,
             'reset': self.cmd_reset,
             'path': self.cmd_path
         }
