@@ -634,14 +634,14 @@ class CoupledModelController(VehicleController):
             ctrl_config['pos_n']['lim'],
         ])
 
-        self.vel_input_lim = np.array([
-            ctrl_config['vel_u']['input_lim'],
-            ctrl_config['vel_v']['input_lim'],
-            ctrl_config['vel_w']['input_lim'],
-            ctrl_config['vel_p']['input_lim'],
-            ctrl_config['vel_q']['input_lim'],
-            ctrl_config['vel_r']['input_lim'],
-        ])
+        # self.vel_input_lim = np.array([
+        #     ctrl_config['vel_u']['input_lim'],
+        #     ctrl_config['vel_v']['input_lim'],
+        #     ctrl_config['vel_w']['input_lim'],
+        #     ctrl_config['vel_p']['input_lim'],
+        #     ctrl_config['vel_q']['input_lim'],
+        #     ctrl_config['vel_r']['input_lim'],
+        # ])
 
         # pitch controller parameters
         self.pitch_surge_coeff = float(ctrl_config.get('pitch_surge_coeff', 0.0))
