@@ -34,6 +34,12 @@
     </group>
 
 
+     <!-- use coupled model controller if COUPLED env is not set -->
+    <group if="$(optenv COUPLED 0)">
+            <rosparam command="load" file="$(find vehicle_core)/conf/coupled_ctrl_sim.yaml" />
+    </group>
+
+
     <!-- start the vehicle controller -->
     <node name="vehicle_pilot" pkg="vehicle_core" type="node_pilot.py" output="screen">
         <!-- redirect output -->

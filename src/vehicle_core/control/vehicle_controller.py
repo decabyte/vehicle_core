@@ -559,3 +559,138 @@ class AutoTuningController(CascadedController):
             self.pos_Kp, self.pos_Kd, self.pos_Ki,
             self.vel_Kp, self.vel_Kd, self.vel_Ki,
         )
+
+
+class CoupledModelController(VehicleController):
+    """CascadedController implements a controller strategy based on the use of cascaded PID controllers.
+
+    This class encapsulate a cascaded PID controller and exposes several methods to provide input for the
+    controller architecture and to obtain the output, namely forces and thrusters commands, to control the vehicle.
+    """
+
+    def __init__(self, dt, ctrl_config, model_config, **kwargs):
+        super(CoupledModelController, self).__init__(dt, ctrl_config, **kwargs)
+
+        # init params
+        self.pos_Kp = np.zeros(6)
+        self.pos_Kd = np.zeros(6)
+        self.pos_Ki = np.zeros(6)
+
+        self.pos_lim = np.zeros(6)
+        self.vel_lim = np.zeros(6)
+
+        self.offset_z = 0.0
+        self.offset_m = 0.0
+
+        # intermediate requests
+        self.req_tau = np.zeros(6)
+        self.tau_ctrl = np.zeros(6)
+        self.tau_prev = np.zeros(6)
+
+        # errors
+        self.err_pos = np.zeros(6)
+        self.err_pos_prev = np.zeros(6)
+        self.err_pos_der = np.zeros(6)
+
+        # init jacobians matrices
+        self.J = np.zeros((6, 6))  # jacobian matrix (translate velocity from body referenced to Earth referenced)
+        self.J_inv = np.zeros((6, 6))  # inverse jacobian matrix
+
+        self.des_acc = np.zeros(6)
+
+
+    def update_config(self, ctrl_config, model_config):
+        # trimming offsets
+        self.offset_z = float(ctrl_config.get('offset_z', 0.0))
+        self.offset_m = float(ctrl_config.get('offset_m', 0.0))
+
+        self.model = vm.VehicleModel(model_config)
+
+        # pid parameters (position)
+        self.pos_Kp = np.array([
+            ctrl_config['pos_x']['kp'],
+            ctrl_config['pos_y']['kp'],
+            ctrl_config['pos_z']['kp'],
+            ctrl_config['pos_k']['kp'],
+            ctrl_config['pos_m']['kp'],
+            ctrl_config['pos_n']['kp'],
+        ])
+
+        self.pos_Kd = np.array([
+            ctrl_config['pos_x']['kd'],
+            ctrl_config['pos_y']['kd'],
+            ctrl_config['pos_z']['kd'],
+            ctrl_config['pos_k']['kd'],
+            ctrl_config['pos_m']['kd'],
+            ctrl_config['pos_n']['kd'],
+        ])
+
+        self.pos_lim = np.array([
+            ctrl_config['pos_x']['lim'],
+            ctrl_config['pos_y']['lim'],
+            ctrl_config['pos_z']['lim'],
+            ctrl_config['pos_k']['lim'],
+            ctrl_config['pos_m']['lim'],
+            ctrl_config['pos_n']['lim'],
+        ])
+
+        self.vel_input_lim = np.array([
+            ctrl_config['vel_u']['input_lim'],
+            ctrl_config['vel_v']['input_lim'],
+            ctrl_config['vel_w']['input_lim'],
+            ctrl_config['vel_p']['input_lim'],
+            ctrl_config['vel_q']['input_lim'],
+            ctrl_config['vel_r']['input_lim'],
+        ])
+
+        # pitch controller parameters
+        self.pitch_surge_coeff = float(ctrl_config.get('pitch_surge_coeff', 0.0))
+        self.pitch_rest_coeff = float(ctrl_config.get('pitch_rest_coeff', 0.0))
+
+
+    def update(self, position, velocity):
+        # store nav updates
+        self.pos = position
+        self.vel = velocity
+
+        # update jacobians
+        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
+        self.J_inv = np.linalg.inv(self.J)
+
+        # PI position controller
+        self.err_pos = self.pos - self.des_pos
+        self.err_pos = np.dot(self.J_inv, self.err_pos.reshape(-1, 1)).flatten()
+
+        # wrap angles and limit pitch
+        self.err_pos[3:6] = cnv.wrap_pi(self.err_pos[3:6])
+        self.err_pos[4] = np.clip(self.err_pos[4], -MAX_PITCH, MAX_PITCH)
+
+        # update the errors
+        self.err_pos_der = (self.err_pos - self.err_pos_prev) / self.dt
+        self.err_pos_prev = self.err_pos
+
+        #coupled-model based controller
+        self.tau_prev = self.model.update_coupled_model(position,velocity,self.des_vel)
+       # self.req_tau = self.des_acc - self.pos_Kd * self.err_pos_der - self.pos_Kp * self.err_pos + self.tau_prev
+        self.req_tau =  self.des_acc - self.pos_Kd * self.err_pos_der - self.pos_Kp * self.err_pos  + self.tau_prev
+        self.tau_ctrl =  self.req_tau #np.dot(self.model.M, self.req_tau)
+
+        # hard limits on forces
+        #   default: no roll allowed
+        self.tau_ctrl[3] = 0.0
+
+        # trimming forces: add offsets from config (if any)
+        self.tau_ctrl[2] += self.offset_z  # depth
+        self.tau_ctrl[4] += self.offset_m  # pitch
+
+        return self.tau_ctrl
+
+
+    def __str__(self):
+        return """%s
+          tau_prev: %s
+          tau_ctrl: %s
+        """ % (
+            super(CoupledModelController, self).__str__(),
+            self.tau_prev, self.tau_ctrl,
+        )

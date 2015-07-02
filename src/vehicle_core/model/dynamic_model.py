@@ -264,6 +264,19 @@ def calc_other_forces(pos, vel, cog, cob, mass, inertia, W, B, added_terms, quad
 
     return F_c + F_d + G
 
+
+#pythran export calc_coupled_forces(float[], float[], float[], float[], float[], float, float[], float, float, float[], float[])
+def calc_coupled_forces(pos, vel, des_vel, cog, cob, mass, inertia, W, B, added_terms, quadratic_coeff):
+    C = calc_coriolis(vel, mass, cog, inertia, added_terms)
+    D = calc_damping(des_vel, quadratic_coeff)
+    G = calc_restoring(pos, cog, cob, W, B)
+
+    F_c = mat_vec_mult(C, vel.flatten())
+    F_d = mat_vec_mult(D, des_vel.flatten())
+
+    return F_c+ F_d + G
+
+
 #pythran export mat_vec_mult(float[][], float[])
 def mat_vec_mult(A, b):
     """This function implements the matrix vector multiplication.

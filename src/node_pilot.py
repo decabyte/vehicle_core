@@ -335,6 +335,8 @@ class VehiclePilot(object):
                 self.controller = vc.AutoTuningController(self.dt, self.ctrl_config, self.model_config, lim_vel=self.max_speed)
             elif self.ctrl_type == 'hybrid':
                 self.controller = hc.HydridController(self.dt, self.ctrl_config, self.model_config, lim_vel=self.max_speed)
+            elif self.ctrl_type == 'coupled':
+                self.controller = vc.CoupledModelController(self.dt,self.ctrl_config, self.model_config, lim_vel=self.max_speed)
             else:
                 rospy.logfatal('controller type [%s] not supported', self.ctrl_type)
                 raise ValueError('controller type [%s] not supported', self.ctrl_type)

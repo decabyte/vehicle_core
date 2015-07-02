@@ -180,6 +180,24 @@ class VehicleModel(object):
         )
 
 
+    def update_coupled_model(self,pos,vel,des_vel):
+
+        """Calculates forces needed in the coupled controller based on the position, velocity and desired velocity.
+
+        :param pos: current position of the vehicle [x,y,z,k,m,n]   (in meters and radians)
+        :param vel: current velocity of the vehicle [u,v,w,p,q,r]   (in m/s and rad/s)
+        :param des_vel : desired velocity of the vehicle [ud, vd, wd, pd, qd, rd] (in m/s and rad/s)
+        :return: numpy.ndarray of shape (6,) with forces required for coupled-control implementation in body-frame [X,Y,Z,K,M,N]
+        """
+
+        vel = np.clip(vel, -self.lim_vel, self.lim_vel)
+
+        return dm.calc_coupled_forces(
+            pos, vel, des_vel, self.cog, self.cob, self.mass, self.inertia, self.W, self.B,
+            self.added_terms, self.quadratic_drag
+        )
+
+
     def update_tau(self, pos, vel, acc):
         """Calculates the tau given the requested acceleration, the actual position and velocities, including the dynamics
         of the vehicle using the model parameters. It can be used for linearizing the feedback loop in the vehicle controller.
