@@ -180,7 +180,7 @@ class VehicleModel(object):
         )
 
 
-    def update_coupled_model(self,pos,vel,des_vel):
+    def update_coupled_model(self,pos,vel, acc, des_vel):
 
         """Calculates forces needed in the coupled controller based on the position, velocity and desired velocity.
 
@@ -191,12 +191,12 @@ class VehicleModel(object):
         """
 
         vel = np.clip(vel, -self.lim_vel, self.lim_vel)
-
-        return dm.calc_coupled_forces(
+        tau = dm.calc_coupled_forces(
             pos, vel, des_vel, self.cog, self.cob, self.mass, self.inertia, self.W, self.B,
             self.added_terms, self.quadratic_drag
         )
 
+        return tau
 
     def update_tau(self, pos, vel, acc):
         """Calculates the tau given the requested acceleration, the actual position and velocities, including the dynamics

@@ -5,13 +5,12 @@ pilot:
         type: 'coupled'
 
         # position gains
-        pos_x: { kp: 4.250, kd: 0.0, lim: 0.1 }        # max out at 8 m
-        pos_y: { kp: 4.500, kd: 0.0, lim: 0.1 }        # max out at 2 m
-        pos_z: { kp: 4.500, kd: 0.0, lim: 0.1 }
-        pos_k: { kp: 0.000, kd: 0.0, lim: 0.0 }
-        pos_m: { kp: 4.273, kd: 0.0, lim: 5.0 }        # 4 / pi --> max out at 45 deg
-        pos_n: { kp: 4.31831, kd: 0.0, lim: 0.0 }        # 1 / pi --> max out at 180 deg
-        #pos_n: { kp: 4.63661,kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
+        pos_x: { kp: 0.250, kd: 0.0, lim: 0.1 }        # max out at 8 m
+        pos_y: { kp: 0.500, kd: 0.05, lim: 0.1 }        # max out at 2 m
+        pos_z: { kp: 0.500, kd: 0.5, lim: 0.1 }
+        pos_k: { kp: 0.000, kd: 0.05, lim: 0.0 }
+        pos_m: { kp: 4.273, kd: 0.7, lim: 5.0 }        # 4 / pi --> max out at 45 deg
+        pos_n: { kp: 1.31831, kd: 0.06, lim: 0.1 }        # 1 / pi --> max out at 180 deg
 
         # depth compensation (takes into account trimming)
         offset_z: 0.0

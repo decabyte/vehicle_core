@@ -587,6 +587,10 @@ class CoupledModelController(VehicleController):
         self.tau_ctrl = np.zeros(6)
         self.tau_prev = np.zeros(6)
 
+        # previous values
+        self.pos_prev = np.zeros(6)
+        self.vel_prev = np.zeros(6)
+
         # errors
         self.err_pos = np.zeros(6)
         self.err_pos_prev = np.zeros(6)
@@ -669,11 +673,17 @@ class CoupledModelController(VehicleController):
         self.err_pos_der = (self.err_pos - self.err_pos_prev) / self.dt
         self.err_pos_prev = self.err_pos
 
+        # Derivation of desired position/velocity
+        self.des_vel = (self.pos - self.pos_prev) / self.dt
+        self.des_acc = (self.vel - self.vel_prev) / self.dt
+
+        self.pos_prev = self.pos
+        self.vel_prev = self.vel
         #coupled-model based controller
-        self.tau_prev = self.model.update_coupled_model(position,velocity,self.des_vel)
-       # self.req_tau = self.des_acc - self.pos_Kd * self.err_pos_der - self.pos_Kp * self.err_pos + self.tau_prev
-        self.req_tau =  self.des_acc - self.pos_Kd * self.err_pos_der - self.pos_Kp * self.err_pos  + self.tau_prev
-        self.tau_ctrl =  self.req_tau #np.dot(self.model.M, self.req_tau)
+
+        self.tau_prev = self.model.update_coupled_model(self.pos, self.vel, self.des_acc, self.des_vel)
+        self.req_tau =  self.des_acc - self.pos_Kd * self.err_pos_der - self.pos_Kp * self.err_pos
+        self.tau_ctrl =  self.req_tau + self.tau_prev #np.dot(self.model.M, self.req_tau)
 
         # hard limits on forces
         #   default: no roll allowed
