@@ -6,14 +6,14 @@ pilot:
         #linearized_model: false
 
         # position gains
-        kpos: [0.1, 0.1, 0.0, 0.0, 0.0, 0.1]
-        kposprev: [0.01, 0.01, 0.0, 0.0, 0.0, 0.01]
-        kgamma: [0.001, 0.001, 0.0, 0.0, 0.0, 0.001]
+        kpos: 1.0
+        kposprev: 0.1
+        kgamma: 1.0
 
-        lim_pos: [3.0, 3.0, 1.0, 0.0, 0.0, 3.14]
+        lim_pos: [10.0, 10.0, 1.0, 1.0, 1.0, 1.0]
 
         # velocity gains
-        vel_u: { kp: 80.0, ki: 1.0, kd: 0.0, lim: 20.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        vel_u: { kp: 40.0, ki: 1.0, kd: 0.0, lim: 20.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
         vel_v: { kp: 20.0, ki: 0.1, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 1 m produces 40 Newtons
         vel_w: { kp: 20.0, ki: 0.1, kd: 0.0, lim: 5.0, input_lim: 2 }
         vel_p: { kp: 0.00, ki: 0.0, kd: 0.0, lim: 0.1, input_lim: 2 }

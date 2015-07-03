@@ -35,7 +35,7 @@
 #  POSSIBILITY OF SUCH DAMAGE.
 #
 #  Original authors:
-#   Valerio De Carolis, Marian Andrecki, Corina Barbalata, Gordon Frost
+#   Valerio De Carolis, Nicola Di Lecce
 
 from __future__ import division
 
@@ -51,7 +51,8 @@ from vehicle_core.model import dynamic_model as dm
 from vehicle_core.util import conversions as cnv
 
 # default config
-HYBRID_LIM_POS = 0.8        # meters
+HYBRID_LIM_POS = 1.0        # meters
+HYBRID_CLOSE = 1.5          # meters
 
 CONSOLE_STATUS = """%s
   req_v: %s
@@ -101,9 +102,10 @@ class HydridController(vc.VehicleController):
 
     def update_config(self, ctrl_config, model_config):
         # sliding mode
-        self.kpos = np.array(ctrl_config['kpos'])
-        self.kposprev = np.array(ctrl_config['kposprev'])
-        self.kgamma = np.array(ctrl_config['kgamma'])
+        self.kpos = ctrl_config['kpos']
+        self.kposprev = ctrl_config['kposprev']
+        self.kgamma = ctrl_config['kgamma']
+
         self.lim_pos = np.array(ctrl_config['lim_pos'])
 
         # pid parameters (velocity)
@@ -160,17 +162,24 @@ class HydridController(vc.VehicleController):
 
         # update jacobian
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.pinv(self.J)
+        #self.J_inv = np.linalg.pinv(self.J)
 
         # update errors
-        self.err_pos = self.pos - self.des_pos_prev
-        self.delta_pos = self.des_pos - self.des_pos_prev
+        self.err_pos = (self.pos - self.des_pos_prev)
+
+        # wrap angles and limit pitch
+        self.err_pos[3:6] = cnv.wrap_pi(self.err_pos[3:6])
+        self.err_pos[4] = np.clip(self.err_pos[4], -vc.MAX_PITCH, vc.MAX_PITCH)
 
         # update request position
-        self.des_pos_prev = self.des_pos
+        self.delta_pos = (self.des_pos - self.des_pos_prev)
 
-        # neuronal approach
-        # ...
+        # wrap angles and limit pitch
+        self.delta_pos[3:6] = cnv.wrap_pi(self.delta_pos[3:6])
+        self.delta_pos[4] = np.clip(self.delta_pos[4], -vc.MAX_PITCH, vc.MAX_PITCH)
+
+        # keep track of previous request
+        self.des_pos_prev = self.des_pos
 
         # error limits
         self.err_pos = np.clip(self.err_pos, -self.lim_pos, self.lim_pos)
@@ -179,14 +188,8 @@ class HydridController(vc.VehicleController):
         self.vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
         self.err_pos_dot = (self.err_pos - self.delta_pos) + (self.dt * self.vel_efec)
 
-        # error dynamics with neuron
-        # ...
-
         # sliding surface
         self.sigma_pos = self.err_pos_dot - self.err_pos + (self.kposprev * self.err_pos_prev)
-
-        # sliding surface with neuron
-        # ...
 
         # anti-chattering
         self.gamma = self.kgamma * np.tanh(0.5 * self.sigma_pos)
@@ -194,26 +197,41 @@ class HydridController(vc.VehicleController):
         # virtual position
         self.virtual_pos = self.delta_pos - (self.kpos * self.err_pos) - (self.kposprev * self.err_pos_prev) - self.gamma
 
-        # update sliding surface for yaw
-        a = np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5]
-        self.gamma[5] = self.kgamma[5] * np.tanh(0.5 * cnv.wrap_pi(a))
-
         # calculate required velocity
         self.req_vel = np.zeros_like(self.vel)
-        d = (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5]) / self.dt
-
         self.req_vel[0] = np.linalg.norm(self.virtual_pos[0:2]) / self.dt
+
+        # # update sliding surface for yaw
+        # a = np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5]
+        # self.gamma[5] = self.kgamma[5] * np.tanh(0.5 * cnv.wrap_pi(a))
+
+        # calculate required velocity for yaw
+        d = 0.1 * (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5]) / self.dt
         self.req_vel[5] = np.tanh(0.5 * cnv.wrap_pi(d))
 
-        # TESTED also with:
-        #self.req_vel[5] = np.tanh(0.5 * cnv.wrap_pi(a))
-
-        #print('a: %s' % np.rad2deg(cnv.wrap_pi(a)))
-        #print('v: %s' % self.req_vel[5])
-        #print('vpos: %s\ngamma: %s\nreqv: %s' % (self.virtual_pos, self.gamma, self.req_vel))
-
-        # save old error
+        # save old position error
         self.err_pos_prev = self.err_pos
+
+
+        # limit surge velocity
+        if np.linalg.norm(self.err_pos[0:2]) < HYBRID_CLOSE:
+            self.req_vel[0] = 0.0
+
+
+        # debug
+        virt_yaw = np.rad2deg(np.arctan2(self.virtual_pos[1], self.virtual_pos[0]))
+        curr_yaw = np.rad2deg(self.pos[5])
+        yaw_diff = virt_yaw - curr_yaw
+
+        print('sigma: %s' % self.sigma_pos)
+        print('gamma: %s' % self.gamma)
+        print('virtual: %s' % self.virtual_pos[0:2])
+        print('virtual yaw: %s' % virt_yaw)
+        print('current yaw: %s' % curr_yaw)
+        print('yaw diff: %s' % yaw_diff)
+        print('req_vel: %s\n' % self.req_vel)
+
+
 
         # if running in velocity mode ignore the first pid
         if self.ctrl_mode == vc.MODE_VELOCITY:
