@@ -77,6 +77,9 @@ class HydridController(vc.VehicleController):
         self.kposprev = np.zeros_like(self.pos)
         self.lim_pos = np.ones_like(self.pos) * HYBRID_LIM_POS
 
+        self.feedforward_model = False
+        self.model = None
+
         # state
         self.des_pos_prev = np.zeros_like(self.pos)
         self.delta_pos = np.zeros_like(self.pos)
@@ -105,8 +108,14 @@ class HydridController(vc.VehicleController):
         self.kpos = ctrl_config['kpos']
         self.kposprev = ctrl_config['kposprev']
         self.kgamma = ctrl_config['kgamma']
+        self.lim_pos = ctrl_config['lim_pos']
 
-        self.lim_pos = np.array(ctrl_config['lim_pos'])
+        # vehicle model
+        self.feedforward_model = bool(ctrl_config.get('feedforward_model', False))
+        self.linearized_model = bool(ctrl_config.get('linearized_model', False))
+
+        if self.feedforward_model or self.linearized_model:
+            self.model = vm.VehicleModel(model_config)
 
         # pid parameters (velocity)
         self.vel_Kp = np.array([
@@ -197,39 +206,51 @@ class HydridController(vc.VehicleController):
         # virtual position
         self.virtual_pos = self.delta_pos - (self.kpos * self.err_pos) - (self.kposprev * self.err_pos_prev) - self.gamma
 
+        # scaling coefficients
+        self.ku = (self.dt / np.sqrt(2.0 * self.lim_pos**2))
+        self.kw = (self.dt / self.lim_pos)
+        self.kr = 0.2
+
         # calculate required velocity
         self.req_vel = np.zeros_like(self.vel)
-        self.req_vel[0] = np.linalg.norm(self.virtual_pos[0:2]) / self.dt
+        self.req_vel[0] = self.ku * np.linalg.norm(self.virtual_pos[0:2]) / self.dt
+        self.req_vel[2] = self.kw * self.virtual_pos[2] / self.dt
 
         # # update sliding surface for yaw
         # a = np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5]
         # self.gamma[5] = self.kgamma[5] * np.tanh(0.5 * cnv.wrap_pi(a))
 
         # calculate required velocity for yaw
-        d = 0.1 * (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5]) / self.dt
-        self.req_vel[5] = np.tanh(0.5 * cnv.wrap_pi(d))
+        d = (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5])
+        self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d) / self.dt)
+
+        # # limit u speed because of r speed
+        # #   u = clip(u, umax(r))
+        # #   umax(r) = umax * (1-r) / rmax
+        # u_max = 1.0 * (1.0 - (np.abs(self.req_vel[5]) / self.kr))
+        # self.req_vel[0] = np.clip(self.req_vel[0], -u_max, u_max)
 
         # save old position error
         self.err_pos_prev = self.err_pos
 
-
-        # limit surge velocity
+        # limit surge velocity when close to goal
         if np.linalg.norm(self.err_pos[0:2]) < HYBRID_CLOSE:
-            self.req_vel[0] = 0.0
+            self.req_vel[0:3] = self.ku * self.virtual_pos[0:3] / self.dt
+            self.req_vel[3:6] = self.kr * self.virtual_pos[3:6] / self.dt
 
 
-        # debug
-        virt_yaw = np.rad2deg(np.arctan2(self.virtual_pos[1], self.virtual_pos[0]))
-        curr_yaw = np.rad2deg(self.pos[5])
-        yaw_diff = virt_yaw - curr_yaw
-
-        print('sigma: %s' % self.sigma_pos)
-        print('gamma: %s' % self.gamma)
-        print('virtual: %s' % self.virtual_pos[0:2])
-        print('virtual yaw: %s' % virt_yaw)
-        print('current yaw: %s' % curr_yaw)
-        print('yaw diff: %s' % yaw_diff)
-        print('req_vel: %s\n' % self.req_vel)
+        # # debug
+        # virt_yaw = np.arctan2(self.virtual_pos[1], self.virtual_pos[0])
+        # curr_yaw = self.pos[5]
+        # yaw_diff = virt_yaw - curr_yaw
+        #
+        # print('sigma: %s' % self.sigma_pos)
+        # print('gamma: %s' % self.gamma)
+        # print('virtual: %s' % self.virtual_pos[0:2])
+        # print('virtual yaw: %s' % virt_yaw)
+        # print('current yaw: %s' % curr_yaw)
+        # print('yaw diff: %s' % yaw_diff)
+        # print('req_vel: %s\n' % self.req_vel)
 
 
 
@@ -241,10 +262,8 @@ class HydridController(vc.VehicleController):
         self.req_vel = np.clip(self.req_vel, -self.lim_vel, self.lim_vel)
 
 
-        ### REUSE PREVIOUS VELOCITY PID ###
-
-        # model-free pid cascaded controller
-        #   second pid (inner loop on velocity)
+        # backstepping controller
+        #   pid (inner loop on velocity)
         self.err_vel = np.clip(self.vel - self.req_vel, -self.vel_input_lim, self.vel_input_lim)
         self.err_vel_der = (self.err_vel - self.err_vel_prev) / self.dt
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
@@ -257,9 +276,13 @@ class HydridController(vc.VehicleController):
         # update previous error
         self.err_vel_prev = self.err_vel
 
-        # second pid output
+        # pid output
         self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
 
+        # use feed-forward controller only if the linearized model is disabled
+        if self.feedforward_model:
+            self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
+            self.tau_ctrl = self.tau_ctrl + self.tau_model
 
         # hard limits on forces
         #   default: no roll allowed
