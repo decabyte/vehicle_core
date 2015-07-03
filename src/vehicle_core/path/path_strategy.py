@@ -257,7 +257,10 @@ class FastTimeStrategy(PathStrategy):
         self.kind = kwargs.get('interpolation_method', 'linear')
 
         # trajectory time
-        self.t = 0.0
+        self.n = 0.0
+        self.dt = 0.2
+        self.a = 0.1
+        self.v = 0.0
         self.t_interp = self.cum_distances / self.target_speed      # time at the end of each leg
         self.t_end = self.t_interp[-1]
 
@@ -281,18 +284,25 @@ class FastTimeStrategy(PathStrategy):
         # fast motion doesn't require all dofs
         self.dis_axis[1] = 1
 
-        # close enough to next point?
-        if np.linalg.norm(curr_error[0:3]) < self.look_ahead:
-            # compute next time for the interpolation
-            self.t += self.look_ahead / self.target_speed
+        if self.v < self.target_speed:
+            self.n = self.n + self.v * self.dt + 0.5 * self.a * self.dt**2
+            self.v = self.v + self.a * self.dt
+        else:
+            self.n = self.n + self.v * self.dt
 
-        if self.t < self.t_end:
-            self.des_pos[0] = self.fc[0](self.t)
-            self.des_pos[1] = self.fc[1](self.t)
-            self.des_pos[2] = self.fc[2](self.t)
-            self.des_pos[3] = self.fc[3](self.t)
-            self.des_pos[4] = self.fc[4](self.t)
-            self.des_pos[5] = self.fc[5](self.t)
+        # TODO: evaluate if it is worth reintroducing this
+        # # close enough to next point?
+        # if np.linalg.norm(curr_error[0:3]) < self.look_ahead:
+        #     # compute next time for the interpolation
+        #     self.n += self.look_ahead / self.target_speed
+
+        if self.n < self.t_end:
+            self.des_pos[0] = self.fc[0](self.n)
+            self.des_pos[1] = self.fc[1](self.n)
+            self.des_pos[2] = self.fc[2](self.n)
+            self.des_pos[3] = self.fc[3](self.n)
+            self.des_pos[4] = self.fc[4](self.n)
+            self.des_pos[5] = self.fc[5](self.n)
 
             # adjust yaw towards next waypoint
             self.des_pos[5] = tt.calculate_orientation(position, self.des_pos)
@@ -314,6 +324,6 @@ class FastTimeStrategy(PathStrategy):
         # update waypoint counter
         try:
             # do not allow the counter to move back
-            self.cnt = np.maximum(np.argwhere(self.t_interp > self.t)[0], self.cnt)
+            self.cnt = np.maximum(np.argwhere(self.t_interp > self.n)[0], self.cnt)
         except:
             self.cnt = len(self.points) - 1

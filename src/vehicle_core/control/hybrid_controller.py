@@ -52,7 +52,7 @@ from vehicle_core.util import conversions as cnv
 
 # default config
 HYBRID_LIM_POS = 1.0        # meters
-HYBRID_CLOSE = 1.5          # meters
+HYBRID_CLOSE = 3.0          # meters
 
 CONSOLE_STATUS = """%s
   req_v: %s
@@ -171,7 +171,7 @@ class HydridController(vc.VehicleController):
 
         # update jacobian
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        #self.J_inv = np.linalg.pinv(self.J)
+        self.J_inv = np.linalg.pinv(self.J)
 
         # update errors
         self.err_pos = (self.pos - self.des_pos_prev)
@@ -235,8 +235,15 @@ class HydridController(vc.VehicleController):
 
         # limit surge velocity when close to goal
         if np.linalg.norm(self.err_pos[0:2]) < HYBRID_CLOSE:
-            self.req_vel[0:3] = self.ku * self.virtual_pos[0:3] / self.dt
-            self.req_vel[3:6] = self.kr * self.virtual_pos[3:6] / self.dt
+            #self.req_vel[0:3] = self.ku * self.virtual_pos[0:3] / self.dt
+            #self.req_vel[3:6] = self.kr * self.virtual_pos[3:6] / self.dt
+
+            epj = np.dot(self.J_inv, self.err_pos.reshape((6, 1))).flatten()
+            epj[3:6] = cnv.wrap_pi(epj[3:6])
+
+            self.req_vel = np.zeros_like(self.vel)
+            self.req_vel[0:3] = -(1.0 / self.lim_pos) * epj[0:3]
+            self.req_vel[3:6] = -(1.0 / np.pi) * epj[3:6]
 
 
         # # debug
@@ -250,7 +257,7 @@ class HydridController(vc.VehicleController):
         # print('virtual yaw: %s' % virt_yaw)
         # print('current yaw: %s' % curr_yaw)
         # print('yaw diff: %s' % yaw_diff)
-        # print('req_vel: %s\n' % self.req_vel)
+        #print('req_vel: %s\n' % self.req_vel)
 
 
 
