@@ -592,9 +592,16 @@ class CoupledModelController(VehicleController):
         self.vel_prev = np.zeros(6)
 
         # errors
+        # errors
         self.err_pos = np.zeros(6)
         self.err_pos_prev = np.zeros(6)
         self.err_pos_der = np.zeros(6)
+        self.err_pos_int = np.zeros(6)
+        self.err_vel = np.zeros(6)
+        self.err_vel_prev = np.zeros(6)
+        self.err_vel_der = np.zeros(6)
+        self.err_vel_int = np.zeros(6)
+
 
         # init jacobians matrices
         self.J = np.zeros((6, 6))  # jacobian matrix (translate velocity from body referenced to Earth referenced)
@@ -611,6 +618,7 @@ class CoupledModelController(VehicleController):
         self.model = vm.VehicleModel(model_config)
 
         # pid parameters (position)
+          # pid parameters (position)
         self.pos_Kp = np.array([
             ctrl_config['pos_x']['kp'],
             ctrl_config['pos_y']['kp'],
@@ -629,6 +637,15 @@ class CoupledModelController(VehicleController):
             ctrl_config['pos_n']['kd'],
         ])
 
+        self.pos_Ki = np.array([
+            ctrl_config['pos_x']['ki'],
+            ctrl_config['pos_y']['ki'],
+            ctrl_config['pos_z']['ki'],
+            ctrl_config['pos_k']['ki'],
+            ctrl_config['pos_m']['ki'],
+            ctrl_config['pos_n']['ki'],
+        ])
+
         self.pos_lim = np.array([
             ctrl_config['pos_x']['lim'],
             ctrl_config['pos_y']['lim'],
@@ -638,14 +655,51 @@ class CoupledModelController(VehicleController):
             ctrl_config['pos_n']['lim'],
         ])
 
-        # self.vel_input_lim = np.array([
-        #     ctrl_config['vel_u']['input_lim'],
-        #     ctrl_config['vel_v']['input_lim'],
-        #     ctrl_config['vel_w']['input_lim'],
-        #     ctrl_config['vel_p']['input_lim'],
-        #     ctrl_config['vel_q']['input_lim'],
-        #     ctrl_config['vel_r']['input_lim'],
-        # ])
+        # pid parameters (velocity)
+        self.vel_Kp = np.array([
+            ctrl_config['vel_u']['kp'],
+            ctrl_config['vel_v']['kp'],
+            ctrl_config['vel_w']['kp'],
+            ctrl_config['vel_p']['kp'],
+            ctrl_config['vel_q']['kp'],
+            ctrl_config['vel_r']['kp'],
+        ])
+
+        self.vel_Kd = np.array([
+            ctrl_config['vel_u']['kd'],
+            ctrl_config['vel_v']['kd'],
+            ctrl_config['vel_w']['kd'],
+            ctrl_config['vel_p']['kd'],
+            ctrl_config['vel_q']['kd'],
+            ctrl_config['vel_r']['kd'],
+        ])
+
+        self.vel_Ki = np.array([
+            ctrl_config['vel_u']['ki'],
+            ctrl_config['vel_v']['ki'],
+            ctrl_config['vel_w']['ki'],
+            ctrl_config['vel_p']['ki'],
+            ctrl_config['vel_q']['ki'],
+            ctrl_config['vel_r']['ki'],
+        ])
+
+        self.vel_lim = np.array([
+            ctrl_config['vel_u']['lim'],
+            ctrl_config['vel_v']['lim'],
+            ctrl_config['vel_w']['lim'],
+            ctrl_config['vel_p']['lim'],
+            ctrl_config['vel_q']['lim'],
+            ctrl_config['vel_r']['lim'],
+        ])
+
+        self.vel_input_lim = np.array([
+            ctrl_config['vel_u']['input_lim'],
+            ctrl_config['vel_v']['input_lim'],
+            ctrl_config['vel_w']['input_lim'],
+            ctrl_config['vel_p']['input_lim'],
+            ctrl_config['vel_q']['input_lim'],
+            ctrl_config['vel_r']['input_lim'],
+        ])
 
         # pitch controller parameters
         self.pitch_surge_coeff = float(ctrl_config.get('pitch_surge_coeff', 0.0))
@@ -653,36 +707,71 @@ class CoupledModelController(VehicleController):
 
 
     def update(self, position, velocity):
-        # store nav updates
+
         self.pos = position
         self.vel = velocity
 
         # update jacobians
         self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.inv(self.J)
+        self.J_inv = np.linalg.pinv(self.J)
 
-        # PI position controller
+        # model-free pid cascaded controller
+        #   first pid (outer loop on position)
         self.err_pos = self.pos - self.des_pos
-        self.err_pos = np.dot(self.J_inv, self.err_pos.reshape(-1, 1)).flatten()
+        self.err_pos = np.dot(self.J_inv, self.err_pos.reshape((6, 1))).flatten()
 
         # wrap angles and limit pitch
         self.err_pos[3:6] = cnv.wrap_pi(self.err_pos[3:6])
         self.err_pos[4] = np.clip(self.err_pos[4], -MAX_PITCH, MAX_PITCH)
 
-        # update the errors
+        # update errors
         self.err_pos_der = (self.err_pos - self.err_pos_prev) / self.dt
+        self.err_pos_int = np.clip(self.err_pos_int + self.err_pos, -self.pos_lim, self.pos_lim)
+
+        # Position integral terms set to zero to avoid oscillations
+        pos_changed = np.sign(self.err_pos) != np.sign(self.err_pos_prev)
+        pos_changed[2] = False  # ignore the depth
+        self.err_pos_int[pos_changed] = 0.0
+
+        # update previous error
         self.err_pos_prev = self.err_pos
 
+        # first pid output (plus speed limits if requested by the user)
+        self.req_vel = (-self.pos_Kp * self.err_pos) + (-self.pos_Kd * self.err_pos_der) + (
+            -self.pos_Ki * self.err_pos_int)
+
         # Derivation of desired position/velocity
-        self.des_vel = (self.pos - self.pos_prev) / self.dt
+      #  self.des_vel = (self.pos - self.pos_prev) / self.dt
         self.des_acc = (self.vel - self.vel_prev) / self.dt
 
         self.pos_prev = self.pos
         self.vel_prev = self.vel
+
+        # if running in velocity mode ignore the first pid
+        if self.ctrl_mode == MODE_VELOCITY:
+            self.req_vel = self.des_vel
+
+        # apply user velocity limits (if any)
+        self.req_vel = np.clip(self.req_vel, -self.lim_vel, self.lim_vel)
+
+        # model-free pid cascaded controller
+        #   second pid (inner loop on velocity)
+        self.err_vel = np.clip(self.vel - self.req_vel, -self.vel_input_lim, self.vel_input_lim)
+        self.err_vel_der = (self.err_vel - self.err_vel_prev) / self.dt
+        self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
+
+        # velocity integral terms set to zero to avoid oscillations
+        vel_changed = np.sign(self.err_vel) != np.sign(self.err_vel_prev)
+        vel_changed[2] = False  # ignore the depth
+        self.err_vel_int[vel_changed] = 0.0
+
+        # update previous error
+        self.err_vel_prev = self.err_vel
+
         #coupled-model based controller
 
-        self.tau_prev = self.model.update_coupled_model(self.pos, self.vel, self.des_acc, self.des_vel)
-        self.req_tau =  self.des_acc - self.pos_Kd * self.err_pos_der - self.pos_Kp * self.err_pos
+        self.tau_prev = self.model.update_coupled_model(self.pos, self.vel, self.des_acc, self.req_vel)
+        self.req_tau =  self.des_acc - self.vel_Kd * self.err_vel_der - self.vel_Kp * self.err_vel
         self.tau_ctrl =  self.req_tau + self.tau_prev #np.dot(self.model.M, self.req_tau)
 
         # hard limits on forces
@@ -690,8 +779,8 @@ class CoupledModelController(VehicleController):
         self.tau_ctrl[3] = 0.0
 
         # trimming forces: add offsets from config (if any)
-        self.tau_ctrl[2] += self.offset_z  # depth
-        self.tau_ctrl[4] += self.offset_m  # pitch
+        # self.tau_ctrl[2] += self.offset_z  # depth
+        # self.tau_ctrl[4] += self.offset_m  # pitch
 
         return self.tau_ctrl
 
