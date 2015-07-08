@@ -86,10 +86,17 @@ class HydridController(vc.VehicleController):
         self.delta_pos = np.zeros_like(self.pos)
         self.sigma_pos = np.zeros_like(self.pos)
 
+        # neuron membrane
+        self.V = np.zeros_like(self.pos)
+        self.A = 2.0 * np.ones_like(self.pos)
+        self.B = 6.0 * np.ones_like(self.pos)
+        self.D = 6.0 * np.ones_like(self.pos)
+        self.act = np.zeros_like(self.pos)
+        self.deact = np.zeros_like(self.pos)
+
         # errors
         self.err_pos = np.zeros_like(self.pos)
         self.err_pos_prev = np.zeros_like(self.pos)
-
         self.err_vel = np.zeros_like(self.vel)
         self.err_vel_prev = np.zeros_like(self.vel)
         self.err_vel_der = np.zeros_like(self.vel)
@@ -97,6 +104,7 @@ class HydridController(vc.VehicleController):
 
         # intermediate requests
         self.req_vel = np.zeros_like(self.pos)
+        self.req_vel_prev = np.zeros_like(self.vel)
         self.tau_ctrl = np.zeros_like(self.pos)
 
         # init jacobian matrices
@@ -191,12 +199,35 @@ class HydridController(vc.VehicleController):
         # keep track of previous request
         self.des_pos_prev = self.des_pos
 
-        # error limits
-        self.err_pos = np.clip(self.err_pos, -self.lim_pos, self.lim_pos)
 
         # change the error if neuron is enabled
         if self.neuron_model:
-            pass
+            self.err_pos = np.clip(self.err_pos, -self.D, self.B)
+            self.err_pos_prev = np.clip(self.err_pos_prev, -self.D, self.B)
+            self.act = np.maximum(self.err_pos, 0.0)
+            self.deact = np.maximum(-self.err_pos, 0.0)
+
+            self.V = -self.A * self.err_pos_prev + (self.B - self.err_pos_prev) * self.act - (self.D + self.err_pos_prev) * self.deact
+            self.err_pos += self.V * self.dt
+
+            # for i in range(len(self.err_pos)):
+            #     # if self.err_pos[i] > 0 and  abs(self.err_pos[i]) > self.B[i]:
+            #     #     self.err_pos[i] = self.B[i]
+            #     #     self.err_pos_prev[i] = self.B[i]
+            #     #
+            #     # if self.err_pos[i] < 0 and abs(self.err_pos[i])>self.D[i]:
+            #     #     self.err_pos[i] = -self.D[i]
+            #     #     self.err_pos_prev[i] = -self.D[i]
+            #
+            #     self.act[i] = max(self.err_pos[i],0)
+            #     self.deact[i] = max(-self.err_pos[i],0)
+            #     self.V[i] = - self.A[i] * self.err_pos_prev[i] + (self.B[i] - self.err_pos_prev[i]) * self.act[i] - (self.D[i] + self.err_pos_prev[i]) * self.deact[i]
+            #     self.err_pos[i] += self.V[i] * self.dt
+        else:
+            # error limits
+            self.err_pos = np.clip(self.err_pos, -self.lim_pos, self.lim_pos)
+
+
 
         # error dynamics
         self.vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
@@ -285,8 +316,8 @@ class HydridController(vc.VehicleController):
 
         # backstepping controller
         #   pid (inner loop on velocity)
-        self.err_vel = np.clip(self.vel - self.req_vel, -self.vel_input_lim, self.vel_input_lim)
-        self.err_vel_der = (self.err_vel - self.err_vel_prev) / self.dt
+        self.err_vel = np.clip(self.req_vel - self.vel_efec, -self.vel_input_lim, self.vel_input_lim)
+        self.err_vel_der = (self.req_vel - self.vel_efec) / self.dt
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
 
         # velocity integral terms set to zero to avoid oscillations (ignore depth)
@@ -294,11 +325,14 @@ class HydridController(vc.VehicleController):
         vel_changed[2] = False
         self.err_vel_int[vel_changed] = 0.0
 
+        # update previous request velocity
+        self.req_vel_prev = self.req_vel
+
         # update previous error
         self.err_vel_prev = self.err_vel
 
         # pid output
-        self.tau_ctrl = (-self.vel_Kp * self.err_vel) + (-self.vel_Kd * self.err_vel_der) + (-self.vel_Ki * self.err_vel_int)
+        self.tau_ctrl = self.err_vel_der + (self.vel_Kp * self.err_vel) + (self.vel_Kd * self.err_vel_der) + (self.vel_Ki * self.err_vel_int)
 
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model:
