@@ -284,6 +284,10 @@ class FastTimeStrategy(PathStrategy):
         # fast motion doesn't require all dofs
         self.dis_axis[1] = 1
 
+        # use real vehicle speed to initialize the virtual speed
+        if self.v == 0:
+            self.v = velocity[0]
+
         if self.v < self.target_speed:
             self.n = self.n + self.v * self.dt + 0.5 * self.a * self.dt**2
             self.v = self.v + self.a * self.dt

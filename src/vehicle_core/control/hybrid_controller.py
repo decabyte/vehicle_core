@@ -297,7 +297,7 @@ class HydridController(vc.VehicleController):
 
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model:
-            self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
+            self.tau_model = self.model.update_forward_model(self.pos, self.vel)
             self.tau_ctrl = self.tau_ctrl + self.tau_model
 
         # hard limits on forces

@@ -329,7 +329,7 @@ class CascadedController(VehicleController):
 
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model and not self.linearized_model:
-            self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
+            self.tau_model = self.model.update_forward_model(self.pos, self.vel)
             self.tau_model[3] = 0  # ignore roll
 
             # feed-forward controller
@@ -513,7 +513,7 @@ class AutoTuningController(CascadedController):
 
         # use feed-forward controller only if the linearized model is disabled
         if self.feedforward_model and not self.linearized_model:
-            self.tau_model = self.model.update_forward_model(self.des_pos, self.des_vel)
+            self.tau_model = self.model.update_forward_model(self.pos, self.vel)
             self.tau_model[3] = 0  # ignore roll
 
             # feed-forward controller

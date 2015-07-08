@@ -180,13 +180,13 @@ class VehicleModel(object):
         )
 
 
-    def update_coupled_model(self,pos,vel, acc, des_vel):
+    def update_coupled_model(self, pos, vel, acc, des_vel):
 
         """Calculates forces needed in the coupled controller based on the position, velocity and desired velocity.
 
         :param pos: current position of the vehicle [x,y,z,k,m,n]   (in meters and radians)
         :param vel: current velocity of the vehicle [u,v,w,p,q,r]   (in m/s and rad/s)
-        :param des_vel : desired velocity of the vehicle [ud, vd, wd, pd, qd, rd] (in m/s and rad/s)
+        :param des_vel: desired velocity of the vehicle [ud, vd, wd, pd, qd, rd] (in m/s and rad/s)
         :return: numpy.ndarray of shape (6,) with forces required for coupled-control implementation in body-frame [X,Y,Z,K,M,N]
         """
 
