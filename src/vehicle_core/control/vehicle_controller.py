@@ -529,9 +529,6 @@ class AutoTuningController(CascadedController):
             # rewrite the requested force using the dynamical model for linearizing the plant
             self.tau_ctrl = self.model.update_tau(self.pos, self.vel, self.acc)
 
-            # TODO: remove system oscillations and add pitch control for linearized version
-            # ...
-
         # pitch controller
         self.tau_ctrl[4] = self.tau_ctrl[4] + self.pitch_surge_coeff * np.abs(self.vel[0]) * self.vel[0] + self.pitch_rest_coeff * np.sin(self.pos[4])
 
