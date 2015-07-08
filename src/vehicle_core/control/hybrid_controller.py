@@ -206,14 +206,21 @@ class HydridController(vc.VehicleController):
         # virtual position
         self.virtual_pos = self.delta_pos - (self.kpos * self.err_pos) - (self.kposprev * self.err_pos_prev) - self.gamma
 
+        #self.virtual_pos = self.delta_pos - (2.2 * self.err_pos)
+        self.gamma[5] = np.arctan2(self.virtual_pos[1], self.virtual_pos[0])
+        self.virtual_pos[5] = self.delta_pos[5] - (2.2 * self.err_pos[5])
+
+
         # scaling coefficients
-        self.ku = (self.dt / np.sqrt(2.0 * self.lim_pos**2))
+        self.ku = (self.dt / np.sqrt(2.0 * (self.lim_pos**2)))
         self.kw = (self.dt / self.lim_pos)
-        self.kr = 0.2
+        self.kr = 0.23
 
         # calculate required velocity
         self.req_vel = np.zeros_like(self.vel)
         self.req_vel[0] = self.ku * np.linalg.norm(self.virtual_pos[0:2]) / self.dt
+        #self.req_vel[0] = 1.0 * np.linalg.norm(self.virtual_pos[0]) / self.dt
+        #self.req_vel[1] = 1.0 * np.linalg.norm(self.virtual_pos[1]) / self.dt
         self.req_vel[2] = self.kw * self.virtual_pos[2] / self.dt
 
         # # update sliding surface for yaw
@@ -221,8 +228,10 @@ class HydridController(vc.VehicleController):
         # self.gamma[5] = self.kgamma[5] * np.tanh(0.5 * cnv.wrap_pi(a))
 
         # calculate required velocity for yaw
-        d = (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5])
-        self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d) / self.dt)
+        d =   self.kr * self.virtual_pos[5] / self.dt
+        self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d) )
+        #d = (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5])
+        #self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d) / self.dt)
 
         # # limit u speed because of r speed
         # #   u = clip(u, umax(r))
