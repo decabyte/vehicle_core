@@ -78,6 +78,7 @@ class HydridController(vc.VehicleController):
         self.lim_pos = np.ones_like(self.pos) * HYBRID_LIM_POS
 
         self.feedforward_model = False
+        self.neuron_model = False
         self.model = None
 
         # state
@@ -112,9 +113,9 @@ class HydridController(vc.VehicleController):
 
         # vehicle model
         self.feedforward_model = bool(ctrl_config.get('feedforward_model', False))
-        self.linearized_model = bool(ctrl_config.get('linearized_model', False))
+        self.neuron_model = bool(ctrl_config.get('neuron_model', False))
 
-        if self.feedforward_model or self.linearized_model:
+        if self.feedforward_model:
             self.model = vm.VehicleModel(model_config)
 
         # pid parameters (velocity)
@@ -192,6 +193,10 @@ class HydridController(vc.VehicleController):
 
         # error limits
         self.err_pos = np.clip(self.err_pos, -self.lim_pos, self.lim_pos)
+
+        # change the error if neuron is enabled
+        if self.neuron_model:
+            pass
 
         # error dynamics
         self.vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()

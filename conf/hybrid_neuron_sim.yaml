@@ -2,7 +2,7 @@ pilot:
     controller:
         type: 'hybrid'
         feedforward_model: true
-        neuron_model: false
+        neuron_model: true
 
         # position gains
         kpos: 1.0
