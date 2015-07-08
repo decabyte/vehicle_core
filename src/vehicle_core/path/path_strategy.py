@@ -259,7 +259,7 @@ class FastTimeStrategy(PathStrategy):
         # trajectory time
         self.n = 0.0
         self.dt = 0.2
-        self.a = 0.1
+        self.a = 0.2
         self.v = 0.0
         self.t_interp = self.cum_distances / self.target_speed      # time at the end of each leg
         self.t_end = self.t_interp[-1]
@@ -284,11 +284,11 @@ class FastTimeStrategy(PathStrategy):
         # fast motion doesn't require all dofs
         self.dis_axis[1] = 1
 
-        # use real vehicle speed to initialize the virtual speed
-        if self.v == 0:
+        # use real vehicle speed to initialize the virtual speed (this takes into account the previous path inertia)
+        if self.v == 0 and velocity[0] > 0.0:
             self.v = velocity[0]
 
-        if self.v < self.target_speed:
+        if self.v <= self.target_speed:
             self.n = self.n + self.v * self.dt + 0.5 * self.a * self.dt**2
             self.v = self.v + self.a * self.dt
         else:
