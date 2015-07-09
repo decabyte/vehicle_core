@@ -88,9 +88,12 @@ class HydridController(vc.VehicleController):
 
         # neuron membrane
         self.V = np.zeros_like(self.pos)
-        self.A = 2.0 * np.ones_like(self.pos)
-        self.B = 6.0 * np.ones_like(self.pos)
-        self.D = 6.0 * np.ones_like(self.pos)
+        self.A = 4.0 * np.ones_like(self.pos)
+        self.B = 10.0 * np.ones_like(self.pos)
+        self.D = 10.0 * np.ones_like(self.pos)
+        self.A[5] = 4.0
+        self.B[5] = 2.0
+        self.D[5] = 2.0
         self.act = np.zeros_like(self.pos)
         self.deact = np.zeros_like(self.pos)
 
