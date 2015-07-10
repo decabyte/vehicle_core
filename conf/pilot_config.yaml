@@ -11,7 +11,7 @@ pilot:
 
     # limits
     max_pitch: 60.0                                   # deg (internally converted to rads)
-    max_speed: [1.2, 0.6, 0.6, 0.0, 2.0, 2.0]         # m/s and rad/s
+    max_speed: [1.2, 0.75, 0.75, 0.0, 2.0, 2.0]       # m/s and rad/s
 
     # thruster mapping
     adaptive_yaw: true
@@ -22,4 +22,4 @@ pilot:
     fault_control: false                              # disabled by default as other nodes may be required
     
     # force allocation strategy
-    optimal_allocation: true
+    optimal_allocation: false

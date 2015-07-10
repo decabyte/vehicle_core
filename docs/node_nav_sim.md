@@ -25,10 +25,10 @@ The effect of currents can be controlled using the `/nav/sim/water` topic and si
     
 - Mean value of water current surface speed (`mu_v`, m/s)
 - Variance value of water current surface speed (`sigma_v`, (m/s)^2)
-- Mean value of water current angle of attack in elevation (`mu_a`, radians, vertical plane)
-- Variance value of angle of attack in elevation (`sigma_a`, radians^2)
 - Mean value of water current angle of attack in azimuth (`mu_b`, radians, horizontal plane)
 - Variance value of angle of attack in azimuth (`sigma_b`, radians^2)
+- Mean value of water current angle of attack in elevation (`mu_a`, radians, vertical plane)
+- Variance value of angle of attack in elevation (`sigma_a`, radians^2)
 
 For instance using the command line tool:
 

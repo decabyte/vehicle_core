@@ -37,18 +37,12 @@
 #  Original authors:
 #   Valerio De Carolis, Marian Andrecki, Corina Barbalata, Gordon Frost
 
-"""Navigation Simulator node is the core part of the navigation_simulator module.
-
-This node calculates the position of the vehicle in a simulated environment and publish the navigation messages at a given rate.
+"""This node wraps the NavigationSimulator providing a ROS interface that publish the navigation messages at a given rate.
 
 It consumes a force input in body-frame coordinates and updates the position of the vehicle in the simulated environment.
-The input forces can be generated using the thrusters_simulator provided in the navigation_simulator package. This two aspects
+The input forces can be generated using the thrusters_simulator provided in the vehicle_core package. This two aspects
 have been separated during the implementation of the nav_sim node to reduce coupling and allow the implementation of a real
 thruster simulator using the thruster model developed during experiments conducted in the OSL tank.
-
-This will enable software-in-the-loop (SIL) and hardware-in-the-loop (HIL)
-simulations for a generic underwater vehicle given the thruster allocation
-matrix (TAM) and the dynamic equations (DE).
 """
 from __future__ import division
 
@@ -63,8 +57,7 @@ roslib.load_manifest('vehicle_core')
 import tf
 import tf.transformations as tft
 
-from vehicle_core.model import vehicle_model as vm
-from vehicle_core.model import dynamic_model as dm
+from vehicle_core.sim import navigation as sim
 from vehicle_core.util import conversions as cnv
 
 from nav_msgs.msg import Odometry
@@ -92,29 +85,9 @@ FRAME_PARENT = 'world'
 FRAME_ODOM = 'odom'
 FRAME_CHILD = 'base_link'
 
-# simulator constants
-DEFAULT_SEED = 47
-DEFAULT_SEA_DEPTH = 1000.0          # meters
-MIN_DEPTH = -0.15                   # meters
-MAX_PITCH = 1.570                   # radians
-MAX_SENSED_DEPTH = 100.0            # meters (this set the maximum value of the altitude in nav_stat)
-MAX_CURRENT = 3.0                   # m/s
 
-# console log
-CONSOLE_STATUS = """nav_sim:
-  tau:   %s
-  F_net: %s
-  acc:   %s
-  vel:   %s
-  pos:   %s %s
-  off_pos: %s %s
-  altitude: %s
-  vel_water: %s
-"""
-
-
-class NavigationSimulator(object):
-    """NavigationSimulator is part of the navigation_simulator module. it provides interfacing with the ROS system.
+class NodeSimulator(object):
+    """NavigationSimulator is part of the vehicle_core module. it provides interfacing with the ROS system.
 
     This class handles force inputs and publish navigation messages simulating the behaviour of the navigation modules
     running inside the vehicle during real operations. It also offers extra topics useful for monitoring the vehicle during
@@ -126,60 +99,23 @@ class NavigationSimulator(object):
 
     def __init__(self, name, sim_rate, pub_rate, **kwargs):
         self.name = name
-        self.dt = 1.0 / sim_rate
         self.verbose = kwargs.get('verbose', False)
 
         # state
-        self.t = 0.0                                                            # simulation time (sec)
+        self.dt = 1.0 / sim_rate
         self.tau = np.zeros(6, dtype=np.float64)                                # input forces (N)
         self.offset_pos = np.zeros(6, dtype=np.float64)                         # navigation offset (meters, rad)
-        self.depth_bottom = kwargs.get('depth_bottom', DEFAULT_SEA_DEPTH)       # sea bottom (meters)
+        self.depth_bottom = kwargs.get('depth_bottom', sim.DEFAULT_SEA_DEPTH)   # sea bottom (meters)
+
+        # initial conditions
+        self.offset_pos = np.array(kwargs.get('pos', self.offset_pos.tolist()))
+        rospy.loginfo('%s setting initial position to zero ...', self.name)
 
         # dynamic model
         self.model_config = rospy.get_param('sim/model', dict())
-        self.model = vm.VehicleModel(self.model_config)
 
-        # velocity vectors used in the navigation simulator
-        #   vel_model is used for the combined velocity of vehicle and water current in the vehicle model equations
-        #   vel_water is used for the water current velocity (at vehicle depth)
-        self.vel_model = np.zeros(6, dtype=np.float64)
-        self.vel_water = np.zeros(6, dtype=np.float64)
-
-        # state of the vehicle (body frame referenced if not specified)
-        #   x axis is along the vehicle, y axis is to the right of the vehicle, z axis is downward oriented
-        #
-        #       vel = [u v w p q r]
-        #       a = d vel/dt
-        #       pos = [x y z phi theta psi]
-        #
-        self.acc = np.zeros(6, dtype=np.float64)      # output: linear and angular acceleration
-        self.vel = np.zeros(6, dtype=np.float64)      # velocity:	linear and angular velocity (body-frame)
-        self.pos = np.zeros(6, dtype=np.float64)      # position:	linear and angular position
-        self.pos_prev = np.zeros(6, dtype=np.float64) # position: linear and angular position
-
-        # water current
-        self.water_surf = kwargs.get('water_surf', 0.0)             # surface speed of water current
-        self.water_sigma = kwargs.get('water_sigma', 0.001)         #   normal distribution (mu, sigma)
-
-        self.water_a = kwargs.get('water_a', 0.0)                   # angle of attack elevation (radians)
-        self.water_a_sigma = kwargs.get('water_a_sigma', 0.001)     # angle of attack elevation variance (radians)
-        self.water_b = kwargs.get('water_b', 0.0)                   # angle of attack azimuth (radians)
-        self.water_b_sigma = kwargs.get('water_b_sigma', 0.001)     # angle of attack azimuth variance (radians)
-
-        # init the rng (aiming for repeatable experiments)
-        np.random.seed(DEFAULT_SEED)
-
-        # initial conditions
-        try:
-            self.pos = np.array(kwargs['pos'])
-        except KeyError:
-            rospy.loginfo('%s setting initial position to zero ...', self.name)
-
-        self.rk4_state = np.concatenate((self.pos, self.vel))   # NOTE: review this with body frame global conversion
-
-        # jacobians
-        self.J = np.zeros((6, 6), dtype=np.float64)       # jacobian matrix (translate velocity from body referenced to Earth referenced)
-        self.J_inv = np.zeros((6, 6), dtype=np.float64)   # inverse jacobian matrix
+        # init navigation simulator
+        self.navsim = sim.NavigationSimulator(self.dt, self.model_config, depth_bottom=self.depth_bottom)
 
         # topics
         self.input_forces = kwargs.get('input_forces', TOPIC_FRC)
@@ -216,7 +152,7 @@ class NavigationSimulator(object):
         self.srv_offset = rospy.Service(SRV_OFFSET, Vector6Service, self.handle_offset)
 
         # timers
-        self.sim_loop = rospy.Rate(sim_rate)
+        self.r_loop = rospy.Rate(sim_rate)
         self.t_pub = rospy.Timer(rospy.Duration(1 / pub_rate), self.publish_navigation)
 
         # optional interfaces
@@ -226,18 +162,16 @@ class NavigationSimulator(object):
 
     def handle_reset(self, req):
         """Resets the status of the navigation simulator."""
-        self.pos = np.zeros(6, dtype=np.float64)
-        self.vel = np.zeros(6, dtype=np.float64)
-        self.pos_prev = np.zeros(6, dtype=np.float64)
-
         rospy.logwarn('%s: resetting the nav simulator ...', self.name)
+        self.navsim.reset()
+
         return EmptyResponse()
 
     def handle_offset(self, req):
         """Sets the nav offset using the user request."""
+        rospy.logwarn('%s: offsetting the nav origin with %s ...', self.name, self.offset_pos)
         self.offset_pos = np.array(req.request)
 
-        rospy.logwarn('%s: offsetting the nav origin with %s ...', self.name, self.offset_pos)
         return Vector6ServiceResponse(True, self.offset_pos)
 
     def handle_water(self, data):
@@ -254,25 +188,32 @@ class NavigationSimulator(object):
         if(params < 2):
             return
 
-        self.water_surf = np.clip(data.values[0], 0.0, MAX_CURRENT)
-        self.water_sigma = np.clip(data.values[1], 0.001, MAX_CURRENT)
+        v = np.clip(data.values[0], 0.0, sim.MAX_CURRENT)
+        sigma_v = np.clip(data.values[1], 0.001, sim.MAX_CURRENT)
+
+        # set default orientation if not provided
+        b = 0.0
+        sigma_b = 0.001
+        a = 0.0
+        sigma_a = 0.001
 
         if(params >= 4):
-            self.water_a = cnv.wrap_pi(data.values[2])
-            self.water_a_sigma = np.clip(data.values[3], 0.001, np.pi)
+            b = cnv.wrap_pi(data.values[4])
+            sigma_b = np.clip(data.values[5], 0.001, np.pi)
 
         if(params >= 6):
-            self.water_b = cnv.wrap_pi(data.values[4])
-            self.water_b_sigma = np.clip(data.values[5], 0.001, np.pi)
+            a = cnv.wrap_pi(data.values[2])
+            sigma_a = np.clip(data.values[3], 0.001, np.pi)
 
-        rospy.loginfo('%s updating water current (vs: %.3f, sigma: %.3f, a: %.3f, as: %.3f, b: %.3f, bs: %.3f)',
-                      self.name, self.water_surf, self.water_sigma,
-                      self.water_a, self.water_a_sigma, self.water_b, self.water_b_sigma)
+        rospy.loginfo('%s updating water current (v: %.3f, vs: %.3f, b: %.3f, bs: %.3f, a: %.3f, as: %.3f)',
+                      self.name, v, sigma_v, b, sigma_b, a, sigma_a)
+
+        self.navsim.update_water_current(v, sigma_v, b, sigma_b, a, sigma_a)
+
 
     def handle_forces(self, data):
-        # load forces from message
-        #   forces are in body frame coordinates
-        self.tau = np.array(data.values[0:6], dtype=np.float64)
+        """Sets the forces acting on the vehicle (e.g. net force produced by thrusters)"""
+        self.tau = np.array(data.values, dtype=np.float64)
 
     def publish_navigation(self, event=None):
         """This function is used for publishing sending data outside of this node.
@@ -280,18 +221,22 @@ class NavigationSimulator(object):
         It applies the navigation offset, used for indoor operations without the use of the global positioning system.
         """
         # current state
-        pos = np.copy(self.pos)
-        vel = np.copy(self.vel)
+        pos = np.copy(self.navsim.pos)
+        vel = np.copy(self.navsim.vel)
+        depth = self.navsim.depth_bottom
 
         # apply offsets (simple strategy)
         pos[0:3] += self.offset_pos[0:3]
 
         # send ROS messages
-        self.send_nav_sts(pos, vel)
+        self.send_nav_sts(pos, vel, depth)
 
         # send TF messages
         self.send_tf_odom(pos, vel)
         #self.send_tf_ned(pos, vel)
+
+    def print_status(self, event=None):
+        print(self.navsim)
 
     def send_tf_ned(self, pos, vel):
         """This is publishing the correct TF transformation with respect to vehicle frame
@@ -347,7 +292,7 @@ class NavigationSimulator(object):
 
         self.pub_odom.publish(od)
 
-    def send_nav_sts(self, pos, vel):
+    def send_nav_sts(self, pos, vel, depth):
         ns = NavSts()
         ns.header.stamp = rospy.Time.now()
         ns.header.frame_id = self.frame_child
@@ -360,7 +305,7 @@ class NavigationSimulator(object):
 
         # NOTE: altitude implementation may be improved using external topics for instance uwsim ones
         #   its implementation is left outside the core part of the navigation simulator in dynamics_simulator.py
-        ns.altitude = np.clip(self.depth_bottom - pos[2], 0.0, MAX_SENSED_DEPTH)
+        ns.altitude = np.clip(depth - pos[2], 0.0, sim.MAX_SENSED_DEPTH)
 
         ns.body_velocity.x = vel[0]
         ns.body_velocity.y = vel[1]
@@ -384,171 +329,15 @@ class NavigationSimulator(object):
     #     ws.wrench.torque.z = -self.sim_nav.F_net[5]
     #     self.pub_force.publish(ws)
 
-    def update_water_currents(self):
-        """This updates the vel_model variable used for the dynamic model equations based on the current state.
-
-        First the velocity of the water current is calculated based on vehicle position, direction of the currents and
-        the sea state. Later the water current velocity is added to the actual vehicle velocity.
-        """
-        Cza = np.eye(3)
-        Cyb = np.eye(3)
-
-        # water flow orientation model with added noise
-        a = np.random.normal(self.water_a, self.water_a_sigma)
-        b = np.random.normal(self.water_b, self.water_b_sigma)
-
-        Cza[0, 0] = np.cos(a)
-        Cza[0, 2] = -np.sin(a)
-        Cza[2, 0] = -np.sin(a)
-        Cza[2, 2] = np.cos(a)
-
-        Cyb[0, 0] = np.cos(-b)
-        Cyb[0, 1] = np.sin(-b)
-        Cyb[1, 0] = -np.sin(-b)
-        Cyb[1, 1] = np.cos(-b)
-
-        # calculate the water velocity
-        #   this assumes a single layer below the surface (with constant behaviour for the first 10 meters)
-        #   and logarithmic decay with the increase of depth
-        vs = np.random.normal(self.water_surf, self.water_sigma)
-
-        if self.pos[2] < 10.0:
-            vz = vs
-        else:
-            vz = vs * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
-
-        vc = np.zeros(3, dtype=np.float64)
-        vc[0] = vz
-
-        # calculate the velocity vector
-        self.water_ef = np.dot(Cza, np.dot(Cyb, vc.reshape(-1, 1)))
-        self.vel_water = np.dot(self.J_inv[0:3, 0:3], self.water_ef).flatten()
-
-        self.vel_model[0:5] = self.vel[0:5]     # copy the values in the vel_model
-        self.vel_model[0:3] += self.vel_water   # add water currents
-
-        # rospy.loginfo('%s: vw: %s', self.name, self.vel_water)
-
-    def int_naive(self):
-        """naive integration"""
-        # calculate acceleration from forces using the dynamic model
-        self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel_model)
-
-        # integration of velocity and convert to earth-fixed reference
-        self.vel = self.vel + (self.acc * self.dt)
-
-        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.pinv(self.J)
-
-        vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
-
-        # integration of position (double term integrator)
-        self.pos = self.pos + (vel_efec * self.dt) + 0.5 * (self.acc * self.dt * self.dt)
-
-    def int_velocity_verlet(self):
-        """velocity verlet integrator
-            [1]: http://en.wikipedia.org/wiki/Verlet_integration
-            [2]: http://research.ncl.ac.uk/game/mastersdegree/gametechnologies/physicsnumericalintegration/Physics%20Tutorial%202%20-%20Numerical%20Integration.pdf
-        """
-        # calculate acceleration from forces using the dynamic model
-        acc_prev = self.model.update_acceleration(self.tau, self.pos, self.vel_model)
-
-        # convert velocity to earth-fixed reference
-        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.pinv(self.J)
-
-        vel_efec = np.dot(self.J, self.vel.reshape((6, 1))).flatten()
-        acc_efec = np.dot(self.J, acc_prev.reshape((6, 1))).flatten()
-
-        # update position
-        self.pos = self.pos + (vel_efec * self.dt) + 0.5 * (acc_efec * self.dt * self.dt)
-
-        # compute the new velocity from forces using the dynamic model
-        self.acc = self.model.update_acceleration(self.tau, self.pos, self.vel)
-        self.vel = self.vel + 0.5 * (acc_prev + self.acc) * self.dt
-
-    # Runge-Kutta integration method:
-    #   - rk4_derivative: this function update the state using derivatives
-    #   - rk4: this function implements a RK4 integration method
-    def rk4_derivative(self, t, state):
-        pos = state[0:6]
-        vel = state[6:12]
-
-        # invoke main computation
-        acc = self.model.update_acceleration(self.tau, pos, vel)
-
-        # convert velocity to global coordinates as we want position in global coordinates
-        self.J = dm.update_jacobian(self.J, self.pos[3], self.pos[4], self.pos[5])
-        self.J_inv = np.linalg.pinv(self.J)
-
-        vel_efec = np.dot(self.J, vel.reshape((6, 1))).flatten()
-
-        return np.concatenate((vel_efec, acc))
-
-    def rk4(self, x, h, y, f):
-        k1 = f(x, y)
-        k2 = f(x + 0.5 * h, y + 0.5 * h * k1)
-        k3 = f(x + 0.5 * h, y + 0.5 * h * k2)
-        k4 = f(x + h, y + h * k3)
-
-        return x + h, y + ((h / 6.0) * (k1 + 2 * (k2 + k3) + k4))
-
-    def update_simulation(self):
-        """This method updates the status of the simulated vehicle.
-
-        :param tau: forces acting on the vehicle in body-frame coordinates (ie. thrusters)
-        """
-        # take into account the water currents
-        self.update_water_currents()
-
-        # simple integration
-        #self.int_naive()
-
-        # improved integration accuracy
-        self.int_velocity_verlet()
-
-        # RK4 integration
-        # self.t += self.dt
-        # self.t, self.rk4_state = self.rk4(self.t, self.dt, self.rk4_state, self.rk4_derivative)
-        # self.vel = self.rk4_state[6:12]     # velocity and position are already in body frame
-        # self.pos = self.rk4_state[0:6]      # position is the integration of the velocity in body frame (for RK4)
-
-        # wrap angles and limit pitch (-90 / 90)
-        self.pos[3:6] = cnv.wrap_pi(self.pos[3:6])
-        self.pos[4] = np.clip(self.pos[4], -MAX_PITCH, MAX_PITCH)
-
-        # prevents the vehicle to fly to high! :)
-        #   remember that a negative depth in NED frame means you are above the surface
-        if self.pos[2] <= MIN_DEPTH:
-            self.acc[2] = 0
-            self.vel[2] = 0
-            self.pos[2] = MIN_DEPTH
-
     def run(self):
-        # init simulation
-        self.tau = np.zeros(6, dtype=np.float64)
-
         # run simulation
         while not rospy.is_shutdown():
-            self.update_simulation()
+            self.navsim.update(self.tau)
 
             try:
-                self.sim_loop.sleep()
+                self.r_loop.sleep()
             except rospy.ROSInterruptException:
                 rospy.loginfo('%s shutdown requested ...', self.name)
-
-    def print_status(self, event=None):
-        print(self)
-
-    def __str__(self):
-        return CONSOLE_STATUS % (
-            self.tau, self.model.F_net,
-            self.acc, self.vel,
-            self.pos[0:3], np.rad2deg(self.pos[3:6]),
-            self.offset_pos[0:3], np.rad2deg(self.offset_pos[3:6]),
-            self.depth_bottom,
-            self.vel_water
-        )
 
 
 def main():
@@ -568,14 +357,15 @@ def main():
     nav_config = rospy.get_param('sim/nav', dict())
 
     # final config
-    config = {
+    config = dict()
+    config.update(nav_config)
+    config.update({
         'topic_odom': rospy.get_param('~topic_odom', TOPIC_ODM),
         'frame_parent': rospy.get_param('~frame_parent', FRAME_PARENT),
         'frame_odom': rospy.get_param('~frame_odom', FRAME_ODOM),
         'frame_child': rospy.get_param('~frame_child', FRAME_CHILD),
         'verbose': bool(rospy.get_param('~verbose', False))
-    }
-    config.update(nav_config)
+    })
 
     # console info
     rospy.loginfo('%s: odom topic: %s', name, config['topic_odom'])
@@ -586,10 +376,10 @@ def main():
     rospy.loginfo('%s: nav config:\n%s', name, nav_config)
 
     # init sim at fixed rate
-    nn = NavigationSimulator(name, sim_rate, pub_rate, **config)
+    ns = NodeSimulator(name, sim_rate, pub_rate, **config)
 
     try:
-        nn.run()
+        ns.run()
     except Exception:
         tb = traceback.format_exc()
         rospy.logfatal('%s uncaught exception, dying!\n%s', name, tb)
