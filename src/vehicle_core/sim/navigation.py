@@ -153,6 +153,8 @@ class NavigationSimulator(object):
 
         First the velocity of the water current is calculated based on vehicle position, direction of the currents and
         the sea state. Later the water current velocity is added to the actual vehicle velocity.
+
+        See: T. Fossen - Guidance and Control of Ocean Vehicles - Section 3.4 Ocean Currents
         """
         Cza = np.eye(3)
         Cyb = np.eye(3)
@@ -171,14 +173,25 @@ class NavigationSimulator(object):
         Cyb[1, 0] = -np.sin(-b)
         Cyb[1, 1] = np.cos(-b)
 
+        # water velocity (normal model)
+        vs = np.random.normal(self.water_surf, self.water_sigma)
+
+        # TODO: implement this (add water_mu, vc_max, vc_min) and init self.vc = 0.5 * (vmax + vmin) where (vmax = water_surf, vmin = 0.0)
+        # # water velocity (first order gauss-markov process)
+        # vc_dot_int = (self.water_mu * self.vc + np.random.normal(0.0, self.water_sigma)) * self.dt
+        # vc_new = self.vc + vc_dot_int
+        #
+        # if vc_new > self.vc_max or vc_new < self.vc_min:
+        #     self.vc = self.vc - vc_dot_int
+        # else:
+        #     self.vc = vc_new
+        #
+        # vs = self.vc
+
         # calculate the water velocity
         #   this assumes a single layer below the surface (with constant behaviour for the first 10 meters)
         #   and logarithmic decay with the increase of depth
-        vs = np.random.normal(self.water_surf, self.water_sigma)
-
-        if self.pos[2] < 10.0:
-            vz = vs
-        else:
+        if self.pos[2] > 10.0:
             vz = vs * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
 
         # calculate the velocity vector
