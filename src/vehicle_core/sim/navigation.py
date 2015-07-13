@@ -120,14 +120,15 @@ class NavigationSimulator(object):
         self.water_mu = kwargs.get('water_mu', 0.0)                 # gauss-markov coeff (if zero: pure gaussian)
         self.water_sigma = kwargs.get('water_sigma', 0.001)         #   normal distribution (mu, sigma)
 
-        self.water_max = kwargs.get('water_surf', 0.0)                 # surface speed of water current (maximum)
-        self.water_min = 0.0                                           #    speed (minimum)
-        self.water_spd = 0.5 * (self.water_max + self.water_min)       #    speed (initial)
+        self.water_max = kwargs.get('water_surf', 0.0)              # surface speed of water current (maximum)
+        self.water_min = 0.0                                        #    speed (minimum)
+        self.water_spd = 0.5 * (self.water_max + self.water_min)    #    speed (initial)
+
+        self.water_b = kwargs.get('water_b', 0.0)                   # angle of attack azimuth (radians)
+        self.water_b_sigma = kwargs.get('water_b_sigma', 0.001)     # angle of attack azimuth variance (radians)
 
         self.water_a = kwargs.get('water_a', 0.0)                   # angle of attack elevation (radians)
         self.water_a_sigma = kwargs.get('water_a_sigma', 0.001)     # angle of attack elevation variance (radians)
-        self.water_b = kwargs.get('water_b', 0.0)                   # angle of attack azimuth (radians)
-        self.water_b_sigma = kwargs.get('water_b_sigma', 0.001)     # angle of attack azimuth variance (radians)
 
         # rk related
         self.rk4_state = np.concatenate((self.pos, self.vel))   # NOTE: review this with body frame global conversion
