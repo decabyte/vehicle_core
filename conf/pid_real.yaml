@@ -26,6 +26,6 @@ pilot:
         offset_z: 5.0       # depth trim (WARNING: these values are in Newtons)
         offset_m: 0.0       # pitch trim (CAUTION: high values are dangerous)
 
-        # pitch controller parameters
-        pitch_surge_coeff: 0.105
-        pitch_rest_coeff: 35.6            # this param is influenced by the offset_m (trimming!)
+#        # pitch controller parameters
+#        pitch_surge_coeff: 0.105
+#        pitch_rest_coeff: 35.6            # this param is influenced by the offset_m (trimming!)

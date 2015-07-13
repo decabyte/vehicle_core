@@ -76,6 +76,7 @@ TOPIC_THR = 'thrusters/commands'
 TOPIC_FRC = 'forces/sim/body'
 TOPIC_NET = 'forces/sim/net'
 TOPIC_WATER = 'nav/sim/water'
+TOPIC_CURRENTS = 'nav/sim/currents'
 
 SRV_RESET = 'nav/reset'
 SRV_OFFSET = 'nav/offset'
@@ -146,6 +147,7 @@ class NodeSimulator(object):
 
         self.pub_navs = rospy.Publisher(self.output_nav, NavSts, queue_size=1, tcp_nodelay=True)
         self.pub_odom = rospy.Publisher(self.topic_odom, Odometry, queue_size=1, tcp_nodelay=True)
+        self.pub_curr = rospy.Publisher(TOPIC_CURRENTS, FloatArrayStamped, queue_size=1, tcp_nodelay=True)
         #self.pub_force = rospy.Publisher(self.output_forces, WrenchStamped, queue_size=1, tcp_nodelay=True)
 
         self.srv_zero = rospy.Service(SRV_RESET, Empty, self.handle_reset)
@@ -176,20 +178,26 @@ class NodeSimulator(object):
 
     def handle_water(self, data):
         """Sets the water current using the user request. This assumes the data input to be an array of floats where:
-            a[0] = water surface speed (m/s)
+            a[0] = water surface speed (maximum) (m/s)
             a[1] = water surface speed variance (m/s)^2
-            a[2] = water angle of attack (azimuth, radians)
-            a[3] = water angle of attack variance (azimuth, radians^2)
-            a[4] = water angle of attack (elevation, radians)
-            a[5] = water angle of attack variance (elevation, radians^2)
+            a[2] = water surface speed process coeff [0.0, 1.0]
+
+            a[3] = water angle of attack (azimuth, radians)
+            a[4] = water angle of attack variance (azimuth, radians^2)
+            a[5] = water angle of attack (elevation, radians)
+            a[6] = water angle of attack variance (elevation, radians^2)
         """
         params = len(data.values)
 
-        if(params < 2):
+        if params < 2:
             return
 
         v = np.clip(data.values[0], 0.0, sim.MAX_CURRENT)
         sigma_v = np.clip(data.values[1], 0.001, sim.MAX_CURRENT)
+        mu = 0.5
+
+        if params >= 3:
+            mu = np.clip(data.values[2], 0.0, 1.0)
 
         # set default orientation if not provided
         b = 0.0
@@ -197,18 +205,18 @@ class NodeSimulator(object):
         a = 0.0
         sigma_a = 0.001
 
-        if(params >= 4):
-            b = cnv.wrap_pi(data.values[4])
-            sigma_b = np.clip(data.values[5], 0.001, np.pi)
+        if params >= 5:
+            b = cnv.wrap_pi(data.values[3])
+            sigma_b = np.clip(data.values[4], 0.001, np.pi)
 
-        if(params >= 6):
-            a = cnv.wrap_pi(data.values[2])
-            sigma_a = np.clip(data.values[3], 0.001, np.pi)
+        if params >= 7:
+            a = cnv.wrap_pi(data.values[5])
+            sigma_a = np.clip(data.values[6], 0.001, np.pi)
 
-        rospy.loginfo('%s updating water current (v: %.3f, vs: %.3f, b: %.3f, bs: %.3f, a: %.3f, as: %.3f)',
-                      self.name, v, sigma_v, b, sigma_b, a, sigma_a)
+        rospy.loginfo('%s updating water current (v: %.3f, vs: %.3f, mu: %.3f, b: %.3f, bs: %.3f, a: %.3f, as: %.3f)',
+                      self.name, v, sigma_v, mu, b, sigma_b, a, sigma_a)
 
-        self.navsim.update_water_current(v, sigma_v, b, sigma_b, a, sigma_a)
+        self.navsim.update_water_current(v, sigma_v, mu, b, sigma_b, a, sigma_a)
 
 
     def handle_forces(self, data):
@@ -234,6 +242,9 @@ class NodeSimulator(object):
         # send TF messages
         self.send_tf_odom(pos, vel)
         #self.send_tf_ned(pos, vel)
+
+        # publish water currents
+        self.send_currents()
 
     def print_status(self, event=None):
         print(self.navsim)
@@ -328,6 +339,17 @@ class NodeSimulator(object):
     #     ws.wrench.torque.y = -self.sim_nav.F_net[4]
     #     ws.wrench.torque.z = -self.sim_nav.F_net[5]
     #     self.pub_force.publish(ws)
+
+    def send_currents(self):
+        fa = FloatArrayStamped()
+        fa.header.stamp = rospy.Time.now()
+        fa.values = [
+            self.navsim.water_spd,
+            #self.navsim.water_b,
+            #self.navsim.water_a
+        ]
+
+        self.pub_curr.publish(fa)
 
     def run(self):
         # run simulation

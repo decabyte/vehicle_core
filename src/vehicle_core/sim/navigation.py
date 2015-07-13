@@ -117,8 +117,12 @@ class NavigationSimulator(object):
         self.vel_water = np.zeros(6, dtype=np.float64)
 
         # water currents
-        self.water_surf = kwargs.get('water_surf', 0.0)             # surface speed of water current
+        self.water_mu = kwargs.get('water_mu', 0.0)                 # gauss-markov coeff (if zero: pure gaussian)
         self.water_sigma = kwargs.get('water_sigma', 0.001)         #   normal distribution (mu, sigma)
+
+        self.water_max = kwargs.get('water_surf', 0.0)                 # surface speed of water current (maximum)
+        self.water_min = 0.0                                           #    speed (minimum)
+        self.water_spd = 0.5 * (self.water_max + self.water_min)       #    speed (initial)
 
         self.water_a = kwargs.get('water_a', 0.0)                   # angle of attack elevation (radians)
         self.water_a_sigma = kwargs.get('water_a_sigma', 0.001)     # angle of attack elevation variance (radians)
@@ -139,14 +143,21 @@ class NavigationSimulator(object):
         self.tau = np.zeros(6, dtype=np.float64)
         self.pos_prev = np.zeros(6, dtype=np.float64)
 
-    def update_water_current(self, v, sigma_v, b, sigma_b, a, sigma_a):
+    def update_water_current(self, v, sigma_v, mu, b, sigma_b, a, sigma_a):
         """Updates the water current model used inside the navigation simulator"""
-        self.water_surf = v
-        self.water_sigma = sigma_v
-        self.water_b = b
-        self.water_b_sigma = sigma_b
-        self.water_a = a
-        self.water_a_sigma = sigma_a
+        # current speed
+        self.water_max = np.maximum(0.0, v)
+        self.water_mu = np.clip(mu, 0.0, 1.0)
+        self.water_sigma = np.maximum(0.001, sigma_v)
+
+        # init speed
+        self.water_spd = 0.5 * (self.water_max + self.water_min)
+
+        # current directions
+        self.water_b = cnv.wrap_pi(b)
+        self.water_b_sigma = np.maximum(0.001, sigma_b)
+        self.water_a = cnv.wrap_pi(a)
+        self.water_a_sigma = np.maximum(0.001, sigma_a)
 
     def calc_currents(self):
         """Updates the vel_model variable used for the dynamic model equations based on the current state.
@@ -174,33 +185,34 @@ class NavigationSimulator(object):
         Cyb[1, 1] = np.cos(-b)
 
         # water velocity (normal model)
-        vs = np.random.normal(self.water_surf, self.water_sigma)
+        #spd = np.random.normal(self.ws_max, self.water_sigma)
 
-        # TODO: implement this (add water_mu, vc_max, vc_min) and init self.vc = 0.5 * (vmax + vmin) where (vmax = water_surf, vmin = 0.0)
-        # # water velocity (first order gauss-markov process)
-        # vc_dot_int = (self.water_mu * self.vc + np.random.normal(0.0, self.water_sigma)) * self.dt
-        # vc_new = self.vc + vc_dot_int
-        #
-        # if vc_new > self.vc_max or vc_new < self.vc_min:
-        #     self.vc = self.vc - vc_dot_int
-        # else:
-        #     self.vc = vc_new
-        #
-        # vs = self.vc
+        # water velocity (first order gauss-markov process with boundaries)
+        ws_dot_int = (self.water_mu * self.water_spd + np.random.normal(0.0, self.water_sigma)) * self.dt
+        ws_new = self.water_spd + ws_dot_int
+
+        if ws_new > self.water_max or ws_new < self.water_min:
+            self.water_spd = self.water_spd - ws_dot_int
+        else:
+            self.water_spd = ws_new
+
+        # assign water speed (scalar) and enforce boundaries
+        #   this allows to exclude the water current if vc_min = vc_max = 0.0
+        spd = np.clip(self.water_spd, self.water_min, self.water_max)
 
         # calculate the water velocity
         #   this assumes a single layer below the surface (with constant behaviour for the first 10 meters)
         #   and logarithmic decay with the increase of depth
         if self.pos[2] > 10.0:
-            vs = vs * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
+            spd = spd * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
 
         # calculate the velocity vector
-        vc = np.array([vs, 0.0, 0.0], dtype=np.float64)
-        water_ef = np.dot(Cza, np.dot(Cyb, vc.reshape((-1, 1))))
+        spd_vect = np.array([spd, 0.0, 0.0], dtype=np.float64)
+        water_ef = np.dot(Cza, np.dot(Cyb, spd_vect.reshape((-1, 1))))
 
         self.vel_water = np.dot(self.J_inv[0:3, 0:3], water_ef).flatten()
 
-        self.vel_model[0:5] = self.vel[0:5]     # copy the values in the vel_model
+        self.vel_model[0:5] = self.vel[0:5]     # copy the values in the vel_model (using slicing)
         self.vel_model[0:3] += self.vel_water   # add water currents
 
     def int_naive(self):
