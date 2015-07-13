@@ -199,16 +199,16 @@ class NavigationSimulator(object):
 
         # assign water speed (scalar) and enforce boundaries
         #   this allows to exclude the water current if vc_min = vc_max = 0.0
-        spd = np.clip(self.water_spd, self.water_min, self.water_max)
+        self.water_spd = np.clip(self.water_spd, self.water_min, self.water_max)
 
         # calculate the water velocity
         #   this assumes a single layer below the surface (with constant behaviour for the first 10 meters)
         #   and logarithmic decay with the increase of depth
         if self.pos[2] > 10.0:
-            spd = spd * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
+            self.water_spd = self.water_spd * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
 
         # calculate the velocity vector
-        spd_vect = np.array([spd, 0.0, 0.0], dtype=np.float64)
+        spd_vect = np.array([self.water_spd, 0.0, 0.0], dtype=np.float64)
         water_ef = np.dot(Cza, np.dot(Cyb, spd_vect.reshape((-1, 1))))
 
         self.vel_water = np.dot(self.J_inv[0:3, 0:3], water_ef).flatten()
