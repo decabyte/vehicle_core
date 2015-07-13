@@ -293,7 +293,6 @@ class HydridController(vc.VehicleController):
             self.req_vel[0:3] = -(1.0 / self.lim_pos) * epj[0:3]
             self.req_vel[3:6] = -(1.0 / np.pi) * epj[3:6]
 
-
         # # debug
         # virt_yaw = np.arctan2(self.virtual_pos[1], self.virtual_pos[0])
         # curr_yaw = self.pos[5]
@@ -305,9 +304,7 @@ class HydridController(vc.VehicleController):
         # print('virtual yaw: %s' % virt_yaw)
         # print('current yaw: %s' % curr_yaw)
         # print('yaw diff: %s' % yaw_diff)
-        #print('req_vel: %s\n' % self.req_vel)
-
-
+        # print('req_vel: %s\n' % self.req_vel)
 
         # if running in velocity mode ignore the first pid
         if self.ctrl_mode == vc.MODE_VELOCITY:
@@ -337,7 +334,7 @@ class HydridController(vc.VehicleController):
         # pid output
         self.tau_ctrl = self.err_vel_der + (self.vel_Kp * self.err_vel) + (self.vel_Kd * self.err_vel_der) + (self.vel_Ki * self.err_vel_int)
 
-        # use feed-forward controller only if the linearized model is disabled
+        # use model only if the linearized model is disabled
         if self.feedforward_model:
             self.tau_model = self.model.update_forward_model(self.pos, self.vel)
             self.tau_ctrl = self.tau_ctrl + self.tau_model

@@ -192,10 +192,10 @@ class NavigationSimulator(object):
         #   this assumes a single layer below the surface (with constant behaviour for the first 10 meters)
         #   and logarithmic decay with the increase of depth
         if self.pos[2] > 10.0:
-            vz = vs * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
+            vs = vs * np.log10(1 + ((9.0 * self.pos[2]) / (self.depth_bottom - self.pos[2])))
 
         # calculate the velocity vector
-        vc = np.array([vz, 0.0, 0.0], dtype=np.float64)
+        vc = np.array([vs, 0.0, 0.0], dtype=np.float64)
         water_ef = np.dot(Cza, np.dot(Cyb, vc.reshape((-1, 1))))
 
         self.vel_water = np.dot(self.J_inv[0:3, 0:3], water_ef).flatten()
