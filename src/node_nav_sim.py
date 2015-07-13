@@ -178,14 +178,14 @@ class NodeSimulator(object):
 
     def handle_water(self, data):
         """Sets the water current using the user request. This assumes the data input to be an array of floats where:
-            a[0] = water surface speed (maximum) (m/s)
-            a[1] = water surface speed variance (m/s)^2
-            a[2] = water surface speed process coeff [0.0, 1.0]
+            a[0] = water surface speed (maximum) (m/s)                      (default: 0.0)
+            a[1] = water surface speed variance (m/s)^2                     (default: 0.001)
+            a[2] = water surface speed process coeff [0.0, 1.0]             (default: 0.0)
 
-            a[3] = water angle of attack (azimuth, radians)
-            a[4] = water angle of attack variance (azimuth, radians^2)
-            a[5] = water angle of attack (elevation, radians)
-            a[6] = water angle of attack variance (elevation, radians^2)
+            a[3] = water angle of attack (azimuth, radians)                 (default: 0.0)
+            a[4] = water angle of attack variance (azimuth, radians^2)      (default: 0.001)
+            a[5] = water angle of attack (elevation, radians)               (default: 0.0)
+            a[6] = water angle of attack variance (elevation, radians^2)    (default: 0.001)
         """
         params = len(data.values)
 
@@ -194,7 +194,7 @@ class NodeSimulator(object):
 
         v = np.clip(data.values[0], 0.0, sim.MAX_CURRENT)
         sigma_v = np.clip(data.values[1], 0.001, sim.MAX_CURRENT)
-        mu = 0.5
+        mu = 0.0
 
         if params >= 3:
             mu = np.clip(data.values[2], 0.0, 1.0)
