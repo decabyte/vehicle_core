@@ -273,8 +273,9 @@ def calc_coupled_forces(pos, vel, des_vel, cog, cob, mass, inertia, W, B, added_
 
     F_c = mat_vec_mult(C, vel.flatten())
     F_d = mat_vec_mult(D, des_vel.flatten())
+    active = np.array([1.0, 1.0, 1.0, 1.0, 0.0, 0.0])
 
-    return F_c+ F_d + G
+    return  active*(F_c + F_d + G)
 
 
 #pythran export mat_vec_mult(float[][], float[])
