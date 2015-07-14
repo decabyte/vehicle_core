@@ -575,6 +575,7 @@ class CoupledModelController(VehicleController):
 
         self.pos_lim = np.zeros(6)
         self.vel_lim = np.zeros(6)
+        self.coupl_lim = np.zeros(6)
 
         self.offset_z = 0.0
         self.offset_m = 0.0
@@ -698,6 +699,15 @@ class CoupledModelController(VehicleController):
             ctrl_config['vel_r']['input_lim'],
         ])
 
+        self.couple_lim = np.array([
+            ctrl_config['vel_u']['couple_lim'],
+            ctrl_config['vel_v']['couple_lim'],
+            ctrl_config['vel_w']['couple_lim'],
+            ctrl_config['vel_p']['couple_lim'],
+            ctrl_config['vel_q']['couple_lim'],
+            ctrl_config['vel_r']['couple_lim'],
+        ])
+
         # pitch controller parameters
         self.pitch_surge_coeff = float(ctrl_config.get('pitch_surge_coeff', 0.0))
         self.pitch_rest_coeff = float(ctrl_config.get('pitch_rest_coeff', 0.0))
@@ -768,6 +778,9 @@ class CoupledModelController(VehicleController):
         #coupled-model based controller
 
         self.tau_prev = self.model.update_coupled_model(self.pos, self.vel, self.des_acc, self.req_vel)
+        self.tau_prev = np.clip(self.tau_prev, -self.couple_lim, self.couple_lim)
+
+
         self.req_tau =  self.des_acc - self.vel_Kp * self.err_vel - self.vel_Ki * self.err_vel_int - self.vel_Kd * self.err_vel_der
         self.tau_ctrl =  self.req_tau + self.tau_prev #np.dot(self.model.M, self.req_tau)
 
