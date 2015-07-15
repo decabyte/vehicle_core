@@ -272,9 +272,9 @@ def calc_coupled_forces(pos, vel, des_vel, cog, cob, mass, inertia, W, B, added_
 
     C = calc_coriolis(vel, mass, cog, inertia, added_terms)
     D = calc_damping(des_vel, quadratic_coeff)
-    G = calc_restoring(pos, cog, cob, W, B)
 
-    cog[0] = add_mass * cog[0] / 60.0
+    cog[0] = add_mass * cog[0] /60.0
+    G = calc_restoring(pos, cog, cob, W, B)
 
     F_c = mat_vec_mult(C, vel.flatten())
     F_d = mat_vec_mult(D, des_vel.flatten())

@@ -788,6 +788,8 @@ class CoupledModelController(VehicleController):
         #   default: no roll allowed
         self.tau_ctrl[3] = 0.0
 
+        print self.tau_ctrl
+
         # trimming forces: add offsets from config (if any)
         # self.tau_ctrl[2] += self.offset_z  # depth
         # self.tau_ctrl[4] += self.offset_m  # pitch
