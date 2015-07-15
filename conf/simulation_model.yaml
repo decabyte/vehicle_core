@@ -37,7 +37,7 @@ sim:
 
         # quadratic drag coefficients (approximation for underwater vehicles)
         #   [x_uu, y_vv, z_ww, k_pp, m_qq, n_rr]
-        quadratic_drag: [-31.8086, -222.8960, -263.4225, -0.000, -40.5265, -40.5265]
+        quadratic_drag: [-31.8086, -222.8960, -263.4225, -50.000, -40.5265, -40.5265]
 
 
 # approximations based on cylindrical shape
