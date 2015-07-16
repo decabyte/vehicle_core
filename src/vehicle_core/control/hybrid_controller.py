@@ -60,10 +60,12 @@ CONSOLE_STATUS = """%s
   ep: %s
   epp: %s
   dp: %s
+  vp: %s
   evp: %s
   evd: %s
   evi: %s
   tau_c: %s
+  ls: %s
 """
 
 
@@ -80,11 +82,13 @@ class HydridController(vc.VehicleController):
         self.feedforward_model = False
         self.neuron_model = False
         self.model = None
+        self.local_state = False
 
         # state
         self.des_pos_prev = np.zeros_like(self.pos)
         self.delta_pos = np.zeros_like(self.pos)
         self.sigma_pos = np.zeros_like(self.pos)
+        self.virtual_pos = np.zeros_like(self.pos)
 
         # neuron membrane
         self.V = np.zeros_like(self.pos)
@@ -105,6 +109,17 @@ class HydridController(vc.VehicleController):
         self.err_vel_der = np.zeros_like(self.vel)
         self.err_vel_int = np.zeros_like(self.vel)
 
+        # optional position pid
+        self.epj = np.zeros_like(self.pos)
+        self.epj_prev = np.zeros_like(self.pos)
+        self.epj_der = np.zeros_like(self.pos)
+        self.epj_int = np.zeros_like(self.pos)
+
+        self.pos_Kp = np.zeros_like(self.pos)
+        self.pos_Ki = np.zeros_like(self.pos)
+        self.pos_Kd = np.zeros_like(self.pos)
+        self.pos_lim = np.zeros_like(self.pos)
+
         # intermediate requests
         self.req_vel = np.zeros_like(self.pos)
         self.req_vel_prev = np.zeros_like(self.vel)
@@ -122,12 +137,53 @@ class HydridController(vc.VehicleController):
         self.kgamma = ctrl_config['kgamma']
         self.lim_pos = ctrl_config['lim_pos']
 
+        # trimming offsets
+        self.offset_z = float(ctrl_config.get('offset_z', 0.0))
+        self.offset_m = float(ctrl_config.get('offset_m', 0.0))
+
         # vehicle model
         self.feedforward_model = bool(ctrl_config.get('feedforward_model', False))
         self.neuron_model = bool(ctrl_config.get('neuron_model', False))
 
         if self.feedforward_model:
             self.model = vm.VehicleModel(model_config)
+
+        # pid parameters (position)
+        self.pos_Kp = np.array([
+            ctrl_config['pos_x']['kp'],
+            ctrl_config['pos_y']['kp'],
+            ctrl_config['pos_z']['kp'],
+            ctrl_config['pos_k']['kp'],
+            ctrl_config['pos_m']['kp'],
+            ctrl_config['pos_n']['kp'],
+        ])
+
+        self.pos_Kd = np.array([
+            ctrl_config['pos_x']['kd'],
+            ctrl_config['pos_y']['kd'],
+            ctrl_config['pos_z']['kd'],
+            ctrl_config['pos_k']['kd'],
+            ctrl_config['pos_m']['kd'],
+            ctrl_config['pos_n']['kd'],
+        ])
+
+        self.pos_Ki = np.array([
+            ctrl_config['pos_x']['ki'],
+            ctrl_config['pos_y']['ki'],
+            ctrl_config['pos_z']['ki'],
+            ctrl_config['pos_k']['ki'],
+            ctrl_config['pos_m']['ki'],
+            ctrl_config['pos_n']['ki'],
+        ])
+
+        self.pos_lim = np.array([
+            ctrl_config['pos_x']['lim'],
+            ctrl_config['pos_y']['lim'],
+            ctrl_config['pos_z']['lim'],
+            ctrl_config['pos_k']['lim'],
+            ctrl_config['pos_m']['lim'],
+            ctrl_config['pos_n']['lim'],
+        ])
 
         # pid parameters (velocity)
         self.vel_Kp = np.array([
@@ -188,6 +244,15 @@ class HydridController(vc.VehicleController):
         # update errors
         self.err_pos = (self.pos - self.des_pos_prev)
 
+        # check for proximity to goal
+        if not np.allclose(self.des_pos, self.des_pos_prev):
+            self.local_state = False
+
+        if not self.local_state:
+            if np.linalg.norm(self.err_pos[0:2]) < HYBRID_CLOSE:
+                self.local_state = True
+
+
         # wrap angles and limit pitch
         self.err_pos[3:6] = cnv.wrap_pi(self.err_pos[3:6])
         self.err_pos[4] = np.clip(self.err_pos[4], -vc.MAX_PITCH, vc.MAX_PITCH)
@@ -213,23 +278,12 @@ class HydridController(vc.VehicleController):
             self.V = -self.A * self.err_pos_prev + (self.B - self.err_pos_prev) * self.act - (self.D + self.err_pos_prev) * self.deact
             self.err_pos += self.V * self.dt
 
-            # for i in range(len(self.err_pos)):
-            #     # if self.err_pos[i] > 0 and  abs(self.err_pos[i]) > self.B[i]:
-            #     #     self.err_pos[i] = self.B[i]
-            #     #     self.err_pos_prev[i] = self.B[i]
-            #     #
-            #     # if self.err_pos[i] < 0 and abs(self.err_pos[i])>self.D[i]:
-            #     #     self.err_pos[i] = -self.D[i]
-            #     #     self.err_pos_prev[i] = -self.D[i]
-            #
-            #     self.act[i] = max(self.err_pos[i],0)
-            #     self.deact[i] = max(-self.err_pos[i],0)
-            #     self.V[i] = - self.A[i] * self.err_pos_prev[i] + (self.B[i] - self.err_pos_prev[i]) * self.act[i] - (self.D[i] + self.err_pos_prev[i]) * self.deact[i]
-            #     self.err_pos[i] += self.V[i] * self.dt
+            # wrap angles and limit pitch
+            self.err_pos[3:6] = cnv.wrap_pi(self.err_pos[3:6])
+            self.err_pos[4] = np.clip(self.err_pos[4], -vc.MAX_PITCH, vc.MAX_PITCH)
         else:
-            # error limits
+            # otherwise apply error limits
             self.err_pos = np.clip(self.err_pos, -self.lim_pos, self.lim_pos)
-
 
 
         # error dynamics
@@ -245,21 +299,19 @@ class HydridController(vc.VehicleController):
         # virtual position
         self.virtual_pos = self.delta_pos - (self.kpos * self.err_pos) - (self.kposprev * self.err_pos_prev) - self.gamma
 
-        #self.virtual_pos = self.delta_pos - (2.2 * self.err_pos)
         self.gamma[5] = np.arctan2(self.virtual_pos[1], self.virtual_pos[0])
-        self.virtual_pos[5] = self.delta_pos[5] - (2.2 * self.err_pos[5])
+        self.virtual_pos[5] = self.delta_pos[5] - (self.kpos * self.err_pos[5]) # 2.2
 
 
         # scaling coefficients
         self.ku = (self.dt / np.sqrt(2.0 * (self.lim_pos**2)))
         self.kw = (self.dt / self.lim_pos)
-        self.kr = 0.23
+        self.kr = self.dt # 0.23
+        self.krr = 1 / np.tanh(0.25 * np.pi)
 
         # calculate required velocity
         self.req_vel = np.zeros_like(self.vel)
         self.req_vel[0] = self.ku * np.linalg.norm(self.virtual_pos[0:2]) / self.dt
-        #self.req_vel[0] = 1.0 * np.linalg.norm(self.virtual_pos[0]) / self.dt
-        #self.req_vel[1] = 1.0 * np.linalg.norm(self.virtual_pos[1]) / self.dt
         self.req_vel[2] = self.kw * self.virtual_pos[2] / self.dt
 
         # # update sliding surface for yaw
@@ -267,8 +319,8 @@ class HydridController(vc.VehicleController):
         # self.gamma[5] = self.kgamma[5] * np.tanh(0.5 * cnv.wrap_pi(a))
 
         # calculate required velocity for yaw
-        d =   self.kr * self.virtual_pos[5] / self.dt
-        self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d) )
+        d = self.kr * self.virtual_pos[5] / self.dt
+        self.req_vel[5] = self.krr * np.tanh(0.25 * cnv.wrap_pi(d) )
         #d = (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5])
         #self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d) / self.dt)
 
@@ -281,30 +333,35 @@ class HydridController(vc.VehicleController):
         # save old position error
         self.err_pos_prev = self.err_pos
 
+
         # limit surge velocity when close to goal
-        if np.linalg.norm(self.err_pos[0:2]) < HYBRID_CLOSE:
-            #self.req_vel[0:3] = self.ku * self.virtual_pos[0:3] / self.dt
-            #self.req_vel[3:6] = self.kr * self.virtual_pos[3:6] / self.dt
+        if self.local_state:
+            self.ep = self.pos - self.des_pos
+            self.epj = np.dot(self.J_inv, self.ep.reshape((6, 1))).flatten()
 
-            epj = np.dot(self.J_inv, self.err_pos.reshape((6, 1))).flatten()
-            epj[3:6] = cnv.wrap_pi(epj[3:6])
+            # wrap angles and limit pitch
+            self.epj[3:6] = cnv.wrap_pi(self.epj[3:6])
+            self.epj[4] = np.clip(self.epj[4], -vc.MAX_PITCH, vc.MAX_PITCH)
 
-            self.req_vel = np.zeros_like(self.vel)
-            self.req_vel[0:3] = -(1.0 / self.lim_pos) * epj[0:3]
-            self.req_vel[3:6] = -(1.0 / np.pi) * epj[3:6]
+            # update errors
+            self.epj_der = (self.epj - self.epj_prev) / self.dt
+            self.epj_int = np.clip(self.epj_int + self.epj, -self.pos_lim, self.pos_lim)
 
-        # # debug
-        # virt_yaw = np.arctan2(self.virtual_pos[1], self.virtual_pos[0])
-        # curr_yaw = self.pos[5]
-        # yaw_diff = virt_yaw - curr_yaw
-        #
-        # print('sigma: %s' % self.sigma_pos)
-        # print('gamma: %s' % self.gamma)
-        # print('virtual: %s' % self.virtual_pos[0:2])
-        # print('virtual yaw: %s' % virt_yaw)
-        # print('current yaw: %s' % curr_yaw)
-        # print('yaw diff: %s' % yaw_diff)
-        # print('req_vel: %s\n' % self.req_vel)
+            # Position integral terms set to zero to avoid oscillations
+            pos_changed = np.sign(self.epj) != np.sign(self.epj_prev)
+            pos_changed[2] = False  # ignore the depth
+            self.epj_int[pos_changed] = 0.0
+
+            # update previous error
+            self.epj_prev = self.epj
+
+            # first pid output (plus speed limits if requested by the user)
+            self.req_vel = (-self.pos_Kp * self.epj) + (-self.pos_Kd * self.epj_der) + (-self.pos_Ki * self.epj_int)
+
+            # self.req_vel = np.zeros_like(self.vel)
+            # self.req_vel[0:3] = -(1.0 / self.lim_pos) * epj[0:3]
+            # self.req_vel[3:6] = -(1.0 / np.pi) * epj[3:6]
+
 
         # if running in velocity mode ignore the first pid
         if self.ctrl_mode == vc.MODE_VELOCITY:
@@ -316,8 +373,8 @@ class HydridController(vc.VehicleController):
 
         # backstepping controller
         #   pid (inner loop on velocity)
-        self.err_vel = np.clip(self.req_vel - self.vel_efec, -self.vel_input_lim, self.vel_input_lim)
-        self.err_vel_der = (self.req_vel - self.vel_efec) / self.dt
+        self.err_vel = np.clip(self.req_vel - self.vel, -self.vel_input_lim, self.vel_input_lim)
+        self.err_vel_der = (self.req_vel - self.vel) / self.dt
         self.err_vel_int = np.clip(self.err_vel_int + self.err_vel, -self.vel_lim, self.vel_lim)
 
         # velocity integral terms set to zero to avoid oscillations (ignore depth)
@@ -343,9 +400,9 @@ class HydridController(vc.VehicleController):
         #   default: no roll allowed
         self.tau_ctrl[3] = 0.0
 
-        # # trimming forces: add offsets from config (if any)
-        # self.tau_ctrl[2] += self.offset_z  # depth
-        # self.tau_ctrl[4] += self.offset_m  # pitch
+        # trimming forces: add offsets from config (if any)
+        self.tau_ctrl[2] += self.offset_z  # depth
+        self.tau_ctrl[4] += self.offset_m  # pitch
 
         return self.tau_ctrl
 
@@ -353,7 +410,7 @@ class HydridController(vc.VehicleController):
         return CONSOLE_STATUS % (
             super(HydridController, self).__str__(),
             self.req_vel, self.lim_vel,
-            self.err_pos, self.err_pos_prev, self.delta_pos,
+            self.err_pos, self.err_pos_prev, self.delta_pos, self.virtual_pos,
             self.err_vel, self.err_vel_der, self.err_vel_int,
-            self.tau_ctrl
+            self.tau_ctrl, self.local_state
         )
