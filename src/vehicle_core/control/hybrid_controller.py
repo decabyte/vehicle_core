@@ -79,6 +79,12 @@ class HydridController(vc.VehicleController):
         self.kposprev = np.zeros_like(self.pos)
         self.lim_pos = np.ones_like(self.pos) * HYBRID_LIM_POS
 
+        # scaling coefficients
+        self.ku = self.dt / np.sqrt(2.0 * (self.lim_pos**2))
+        self.kw = self.dt / self.lim_pos
+        self.kr = 1 / np.tanh(0.5 * np.pi)
+        self.kr_in = self.dt
+
         self.feedforward_model = False
         self.neuron_model = False
         self.model = None
@@ -92,12 +98,9 @@ class HydridController(vc.VehicleController):
 
         # neuron membrane
         self.V = np.zeros_like(self.pos)
-        self.A = 4.0 * np.ones_like(self.pos)
-        self.B = 10.0 * np.ones_like(self.pos)
-        self.D = 10.0 * np.ones_like(self.pos)
-        self.A[5] = 4.0
-        self.B[5] = 2.0
-        self.D[5] = 2.0
+        self.A = np.ones_like(self.pos)
+        self.B = np.ones_like(self.pos)
+        self.D = np.ones_like(self.pos)
         self.act = np.zeros_like(self.pos)
         self.deact = np.zeros_like(self.pos)
 
@@ -137,6 +140,10 @@ class HydridController(vc.VehicleController):
         self.kgamma = ctrl_config['kgamma']
         self.lim_pos = ctrl_config['lim_pos']
 
+        self.ku = ctrl_config['ku']
+        self.kw = ctrl_config['kw']
+        self.kr = ctrl_config['kr']
+
         # trimming offsets
         self.offset_z = float(ctrl_config.get('offset_z', 0.0))
         self.offset_m = float(ctrl_config.get('offset_m', 0.0))
@@ -147,6 +154,11 @@ class HydridController(vc.VehicleController):
 
         if self.feedforward_model:
             self.model = vm.VehicleModel(model_config)
+
+        if self.neuron_model:
+            self.A = np.array(ctrl_config['A'])
+            self.B = np.array(ctrl_config['B'])
+            self.D = np.array(ctrl_config['D'])
 
         # pid parameters (position)
         self.pos_Kp = np.array([
@@ -245,12 +257,12 @@ class HydridController(vc.VehicleController):
         self.err_pos = (self.pos - self.des_pos_prev)
 
         # check for proximity to goal
-        if not np.allclose(self.des_pos, self.des_pos_prev):
-            self.local_state = False
-
         if not self.local_state:
             if np.linalg.norm(self.err_pos[0:2]) < HYBRID_CLOSE:
                 self.local_state = True
+
+        if not np.allclose(self.des_pos, self.des_pos_prev):
+            self.local_state = False
 
 
         # wrap angles and limit pitch
@@ -302,27 +314,21 @@ class HydridController(vc.VehicleController):
         self.gamma[5] = np.arctan2(self.virtual_pos[1], self.virtual_pos[0])
         self.virtual_pos[5] = self.delta_pos[5] - (self.kpos * self.err_pos[5]) # 2.2
 
-
-        # scaling coefficients
-        self.ku = (self.dt / np.sqrt(2.0 * (self.lim_pos**2)))
-        self.kw = (self.dt / self.lim_pos)
-        self.kr = self.dt # 0.23
-        self.krr = 1 / np.tanh(0.25 * np.pi)
-
         # calculate required velocity
         self.req_vel = np.zeros_like(self.vel)
         self.req_vel[0] = self.ku * np.linalg.norm(self.virtual_pos[0:2]) / self.dt
         self.req_vel[2] = self.kw * self.virtual_pos[2] / self.dt
 
         # # update sliding surface for yaw
-        # a = np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5]
-        # self.gamma[5] = self.kgamma[5] * np.tanh(0.5 * cnv.wrap_pi(a))
+        a = np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5]
+        self.gamma[5] = self.kgamma * np.tanh(0.5 * cnv.wrap_pi(a))
 
         # calculate required velocity for yaw
-        d = self.kr * self.virtual_pos[5] / self.dt
-        self.req_vel[5] = self.krr * np.tanh(0.25 * cnv.wrap_pi(d) )
-        #d = (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5])
-        #self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d) / self.dt)
+        #d = self.kr * self.virtual_pos[5] / self.dt
+        #self.req_vel[5] = self.krr * np.tanh(0.25 * cnv.wrap_pi(d) )
+
+        d = self.kr_in * (np.arctan2(self.virtual_pos[1], self.virtual_pos[0]) - self.pos[5] - self.gamma[5]) / self.dt
+        self.req_vel[5] = self.kr * np.tanh(0.5 * cnv.wrap_pi(d))
 
         # # limit u speed because of r speed
         # #   u = clip(u, umax(r))
@@ -357,10 +363,6 @@ class HydridController(vc.VehicleController):
 
             # first pid output (plus speed limits if requested by the user)
             self.req_vel = (-self.pos_Kp * self.epj) + (-self.pos_Kd * self.epj_der) + (-self.pos_Ki * self.epj_int)
-
-            # self.req_vel = np.zeros_like(self.vel)
-            # self.req_vel[0:3] = -(1.0 / self.lim_pos) * epj[0:3]
-            # self.req_vel[3:6] = -(1.0 / np.pi) * epj[3:6]
 
 
         # if running in velocity mode ignore the first pid

@@ -8,8 +8,17 @@ pilot:
         kpos: 1.0
         kposprev: 0.1
         kgamma: 1.0
-
         lim_pos: 5.0
+
+        # velocity gains
+        ku: 0.01414
+        kw: 0.020
+        kr: 1.090
+
+        # default parameters
+        #   self.ku = self.dt / np.sqrt(2.0 * (self.lim_pos**2))
+        #   self.kw = self.dt / self.lim_pos
+        #   self.kr = 1 / np.tanh(0.5 * np.pi)
 
         # position gains
         pos_x: { kp: 0.250, ki: 0.000, kd: 0.0, lim: 0.1 }        # max out at 8 m
