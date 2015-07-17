@@ -45,3 +45,11 @@ To disable the effect of currents:
     rostopic pub -1 /nav/sim/water vehicle_interface/FloatArrayStamped "values: [0.0, 0.001, 0.0]"
     
 This will set to zero the maximum allowed current speed and it will disable the GM process. Together with this the navigation simulator is publish using the topic `nav/sim/currents` the actual state of the current simulator (current speed, angle b, angle a). This can later be used if recorded during the experiments.
+
+### Visualise Current Speed
+
+To visualise the speed of the simulated current just type:
+
+    rqt_plot /nav/sim/currents/values[0] &
+
+This will start the `rqt_plot` utility plotting the speed of the water current at the actual position of the vehicle. 
