@@ -748,7 +748,6 @@ class CoupledModelController(VehicleController):
             -self.pos_Ki * self.err_pos_int)
 
         # Derivation of desired position/velocity
-      #  self.des_vel = (self.pos - self.pos_prev) / self.dt
         self.des_acc = (self.vel - self.vel_prev) / self.dt
 
         self.pos_prev = self.pos
@@ -775,27 +774,22 @@ class CoupledModelController(VehicleController):
         # update previous error
         self.err_vel_prev = self.err_vel
 
-        #coupled-model based controller
+        # temp_tau = self.des_acc[3] - self.vel_Kp[3] * self.err_vel[3] - self.vel_Ki[3] * self.err_vel_int[3] - self.vel_Kd[3] * self.err_vel_der[3]
+        # self.err_vel[4] = np.clip(self.vel[4] - temp_tau, -self.vel_input_lim[4], self.vel_input_lim[4])
 
+        #coupled-model based controller
         self.tau_prev = self.model.update_coupled_model(self.pos, self.vel, self.des_acc, self.req_vel)
         self.tau_prev = np.clip(self.tau_prev, -self.couple_lim, self.couple_lim)
 
-
         self.req_tau =  self.des_acc - self.vel_Kp * self.err_vel - self.vel_Ki * self.err_vel_int - self.vel_Kd * self.err_vel_der
+
         self.tau_ctrl =  self.req_tau + self.tau_prev #np.dot(self.model.M, self.req_tau)
 
         # hard limits on forces
         #   default: no roll allowed
         self.tau_ctrl[3] = 0.0
 
-        print self.tau_ctrl
-
-        # trimming forces: add offsets from config (if any)
-        # self.tau_ctrl[2] += self.offset_z  # depth
-        # self.tau_ctrl[4] += self.offset_m  # pitch
-
         return self.tau_ctrl
-
 
     def __str__(self):
         return """%s

@@ -268,19 +268,15 @@ def calc_other_forces(pos, vel, cog, cob, mass, inertia, W, B, added_terms, quad
 #pythran export calc_coupled_forces(float[], float[], float[], float[], float[], float, float[], float, float, float[], float[])
 def calc_coupled_forces(pos, vel, des_vel, cog, cob, mass, inertia, W, B, added_terms, quadratic_coeff):
 
-    add_mass = 2.0
-
     C = calc_coriolis(vel, mass, cog, inertia, added_terms)
     D = calc_damping(des_vel, quadratic_coeff)
 
-    cog[0] = add_mass * cog[0] /60.0
     G = calc_restoring(pos, cog, cob, W, B)
 
     F_c = mat_vec_mult(C, vel.flatten())
     F_d = mat_vec_mult(D, des_vel.flatten())
 
     #active = np.array([0.5, 1.0, 0.2, 0.0, 0.01, 0.01])
-
 
     return  F_c + F_d + G  # active*F_c + F_d + G
 
