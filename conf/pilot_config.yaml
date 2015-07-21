@@ -11,7 +11,7 @@ pilot:
 
     # limits
     max_pitch: 60.0                                   # deg (internally converted to rads)
-    max_speed: [1.2, 0.75, 0.75, 0.0, 2.0, 2.0]       # m/s and rad/s
+    max_speed: [1.2, 0.75, 0.75, 0.0, 1.0, 1.0]       # m/s and rad/s
 
     # thruster mapping
     adaptive_yaw: true

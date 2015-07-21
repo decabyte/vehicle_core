@@ -34,7 +34,8 @@ The effect of currents can be controlled using the `/nav/sim/water` topic and si
 - Variance value of angle of attack in elevation (`sigma_a`, radians^2)
 
 For instance using the command line tool:
-
+    
+    rostopic pub -1 /nav/sim/water vehicle_interface/FloatArrayStamped "values: [0.25, 0.05, 0.01]"
     rostopic pub -1 /nav/sim/water vehicle_interface/FloatArrayStamped "values: [0.25, 0.05, 0.01, 0.0, 0.001, 0.0, 0.001]"
     
 This will tell the `nav_sim` node to simulate a water current with surface speed of 0.1 m/s and orientation north to south, using a first order gauss-markov process (defined by the coefficients `mu`, `v`, `sigma_v`). The `v` term specifies the maximum allowed current speed (bounded between 0.0 and `v`), the `sigma_v` term specifies the amplitude of the gaussian noise term in the process and the `mu` term regulates the first-order dependency of the whole GM process.
@@ -44,3 +45,11 @@ To disable the effect of currents:
     rostopic pub -1 /nav/sim/water vehicle_interface/FloatArrayStamped "values: [0.0, 0.001, 0.0]"
     
 This will set to zero the maximum allowed current speed and it will disable the GM process. Together with this the navigation simulator is publish using the topic `nav/sim/currents` the actual state of the current simulator (current speed, angle b, angle a). This can later be used if recorded during the experiments.
+
+### Visualise Current Speed
+
+To visualise the speed of the simulated current just type:
+
+    rqt_plot /nav/sim/currents/values[0] &
+
+This will start the `rqt_plot` utility plotting the speed of the water current at the actual position of the vehicle. 
