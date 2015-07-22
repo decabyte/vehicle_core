@@ -16,7 +16,7 @@ points:
 - values: [  2.   ,  -2.   ,   1.   ,   0.   ,   0.   ,   0.   ]
 - values: [  2.   ,  -2.   ,   1.   ,   0.   ,   0.   ,   0.   ]
 options:
-- {key: 'mode', value: 'simple'}
+- {key: 'mode', value: 'fast'}
 - {key: 'target_speed', value: '0.5'}
 - {key: 'timeout', value: '300'}
 """ 
