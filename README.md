@@ -76,7 +76,9 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
   
 3b) Optional set the vehicle compass to use an artificial north (offset):
 
+    rosnode kill /Compass
     rosparam set /conf/tcm/artificial_north 0.0
+    rosrun pni_compass compass
   
 4) On Nessie A (after getting a correct initial position):
 
