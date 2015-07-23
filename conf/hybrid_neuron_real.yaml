@@ -19,9 +19,9 @@ pilot:
         lim_pos: 5.0            # meters
 
         # neuron params
-        A: [4, 4, 4, 4, 4, 4]
-        B: [10, 10, 10, 10, 10, 10]
-        D: [10, 10, 10, 10, 10, 10]
+        A: [4, 4, 4, 4, 4, 2]
+        B: [6, 6, 6, 10, 10, 2]
+        D: [6, 6, 6, 10, 10, 2]
 
         # default parameters
         #   self.ku = self.dt / np.sqrt(2.0 * (self.lim_pos**2))
