@@ -779,6 +779,7 @@ class CoupledModelController(VehicleController):
 
         #coupled-model based controller
         self.tau_prev = self.model.update_coupled_model(self.pos, self.vel, self.des_acc, self.req_vel)
+
         self.tau_prev = np.clip(self.tau_prev, -self.couple_lim, self.couple_lim)
 
         self.req_tau =  self.des_acc - self.vel_Kp * self.err_vel - self.vel_Ki * self.err_vel_int - self.vel_Kd * self.err_vel_der
