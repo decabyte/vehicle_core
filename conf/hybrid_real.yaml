@@ -11,14 +11,12 @@ pilot:
         lim_pos: 5.0
 
         # velocity gains
-        #ku: 0.01414
-        ku: 0.020
+        ku: 0.01414             #ku: 0.020
         kw: 0.020
-        #kr: 1.090
-        kr: 1.5
+        kr: 1.090               #kr: 1.5
 
         # position condition
-        pos_close: 1.0      # meters
+        pos_close: 1.0          # meters
 
         # default parameters
         #   self.ku = self.dt / np.sqrt(2.0 * (self.lim_pos**2))
