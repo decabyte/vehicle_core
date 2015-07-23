@@ -10,7 +10,7 @@ points:
 - values: [2.0, -2.0, 1.0, 0, 0, 0]
 
 options:
-- {key: 'mode', value: 'lines'}
+- {key: 'mode', value: 'fast'}
 - {key: 'target_speed', value: '0.5'}
 - {key: 'timeout', value: '300'}
 """ 
