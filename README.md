@@ -70,7 +70,7 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
 
     roslaunch vehicle_core nessie_B_basic.launch
   
-3) On Trieste (or any external laptop) start the joystick driver:
+3) On Trieste (or any external laptop) start the joystick driver (see Using Joystick for more information):
 
     roslaunch vehicle_core joystick.launch
   
@@ -93,6 +93,40 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
 
     rosservice call /pilot/switch "request: true"
 
+## Using Joystick
+1) Connect the joystick to the computer you are using. At this point your computer will assign a path to it, typically
+ it will be:
+    
+    /dev/input/js0
+    
+ However, if other devices are connected this can be different.
+   
+2) Make sure the computer you are running is connecting to roscore on Nessie A. On trieste there are aliases for 
+ switching this (look at .bashrc).
+ 
+3) Launch file which corresponds to the joystick. If the joystick you are intending to use is not at /dev/input/js0 
+ then you will have to specify its path as an argument, e.g.:
+ 
+    roslaunch vehicle_core joystick.launch /dev/input/js2
+    
+ Otherwise you do not have to specify it explicitly.
+ 
+4) Before using the joystick consider these:
+  - after some time of being inactive the joystick will go to sleep, press D-pad button (above the analogue sticks) to 
+  make sure it is awake
+  - if moving left analogue stick has no effect on the vehicle press D-pad button (toggles activation of D-pad/left
+  analogue)
+  - have spare batteries close by in case the current ones run out; losing control over the vehicle in key moment can 
+  lead to damaging the vehicle
+  
+5) The following is the joystick mapping:
+  - left analogue stick applies forces in surge and sway
+  - right analogue stick applies yaw force by default
+  - while R2 is pressed right analogue applies force in vertical directions
+  - X button toggles 'autopilot' - vehicle goes to the last point requested
+  - square button sends current position request
+  - (i.e. sequential combination square + X is 'hold this position')
+  - R1 button is boost: the forces due to other actions are multiplied by two while the button is pressed
   
 ## Guidelines
 
