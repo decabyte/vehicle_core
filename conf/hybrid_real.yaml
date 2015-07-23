@@ -5,18 +5,18 @@ pilot:
         neuron_model: false
 
         # position gains
-        kpos: 1.0
+        kpos: 2.5
         kposprev: 0.1
         kgamma: 1.0
-        lim_pos: 5.0
-
+        
         # velocity gains
-        ku: 0.01414             #ku: 0.020
+        ku: 0.020       #0.01414
         kw: 0.020
-        kr: 1.090               #kr: 1.5
+        kr: 1.500       #1.09000
 
         # position condition
         pos_close: 1.0          # meters
+        lim_pos: 5.0            # meters
 
         # default parameters
         #   self.ku = self.dt / np.sqrt(2.0 * (self.lim_pos**2))
