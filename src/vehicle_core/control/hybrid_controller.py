@@ -52,7 +52,7 @@ from vehicle_core.util import conversions as cnv
 
 # default config
 HYBRID_LIM_POS = 1.0        # meters
-HYBRID_CLOSE = 3.0          # meters
+HYBRID_CLOSE = 1.0          # meters
 
 CONSOLE_STATUS = """%s
   req_v: %s
@@ -143,6 +143,9 @@ class HydridController(vc.VehicleController):
         self.ku = ctrl_config['ku']
         self.kw = ctrl_config['kw']
         self.kr = ctrl_config['kr']
+
+        # close condition
+        self.pos_close = float(ctrl_config.get('pos_close', HYBRID_CLOSE))
 
         # trimming offsets
         self.offset_z = float(ctrl_config.get('offset_z', 0.0))
@@ -258,7 +261,7 @@ class HydridController(vc.VehicleController):
 
         # check for proximity to goal
         if not self.local_state:
-            if np.linalg.norm(self.err_pos[0:2]) < HYBRID_CLOSE:
+            if np.linalg.norm(self.err_pos[0:2]) < self.pos_close:
                 self.local_state = True
 
         if not np.allclose(self.des_pos, self.des_pos_prev):

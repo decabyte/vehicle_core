@@ -17,6 +17,9 @@ pilot:
         #kr: 1.090
         kr: 1.5
 
+        # position condition
+        pos_close: 1.0      # meters
+
         # default parameters
         #   self.ku = self.dt / np.sqrt(2.0 * (self.lim_pos**2))
         #   self.kw = self.dt / self.lim_pos
@@ -39,5 +42,5 @@ pilot:
         vel_r: { kp: 40.0, ki: 0.01, kd: 0.00, lim: 3.0, input_lim: 1 }
 
         # depth compensation (takes into account trimming)
-        offset_z: 5.0
-        offset_m: 0.0
+        offset_z: 5.0       # depth trim (WARNING: these values are in Newtons)
+        offset_m: 0.0       # pitch trim (CAUTION: high values are dangerous)

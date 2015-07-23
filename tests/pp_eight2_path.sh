@@ -11,7 +11,9 @@ points:
 
 options:
 - key: 'mode'
-  value: 'lines'
+  value: 'fast'
+- key: 'target_speed'
+  value: '0.5'
 - key: 'timeout'
   value: '300'
 """
