@@ -138,9 +138,11 @@ class PathController(object):
         self.path_time_end = -1.0
         self.path_time_elapsed = 0.001
 
+        self.distance_travelled = 0.0
         self.hover_timeout = HOVER_TIMEOUT
 
         self.position = np.zeros(6)          # north, east, depth, roll, pitch, yaw
+        self.position_prev = np.zeros(6)     # north, east, depth, roll, pitch, yaw
         self.velocity = np.zeros(6)          # u, v, w, p, q, r
         self.des_pos = np.zeros(6)
         self.des_vel = np.zeros(6)
@@ -166,7 +168,7 @@ class PathController(object):
 
         # ros interface
         self.sub_req = rospy.Subscriber(TOPIC_REQ, PathRequest, self.handle_request, queue_size=1)
-        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.update_nav, queue_size=1)
+        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.handle_nav, queue_size=1)
         self.pub_path_status = rospy.Publisher(TOPIC_STATUS, PathStatus, queue_size=1)
         self.pub_pos_req = rospy.Publisher(TOPIC_POS_REQ, PilotRequest, queue_size=1)
 
@@ -179,7 +181,7 @@ class PathController(object):
 
         # services
         self.srv_controller = rospy.ServiceProxy(SRV_CONTROLLER, BooleanService)
-        self.srv_path = rospy.Service(SRV_PATH_CONTROL, PathService, self.handle_path_srv)
+        self.srv_path = rospy.Service(SRV_PATH_CONTROL, PathService, self.handle_service)
 
         # timers
         self.t_path_status = rospy.Timer(rospy.Duration(self.ts_status), self.publish_path_status)
@@ -251,6 +253,31 @@ class PathController(object):
             #rospy.logdebug('%s: position request: %s', self.name, self.des_pos)
 
 
+    def handle_nav(self, data):
+        self.position = np.array([
+            data.position.north,
+            data.position.east,
+            data.position.depth,
+            data.orientation.roll,
+            data.orientation.pitch,
+            data.orientation.yaw
+        ])
+
+        self.velocity = np.array([
+            data.body_velocity.x,
+            data.body_velocity.y,
+            data.body_velocity.z,
+            data.orientation_rate.roll,
+            data.orientation_rate.pitch,
+            data.orientation_rate.yaw
+        ])
+
+        # virtual odometer
+        if self.state == S_RUNNING:
+            self.distance_travelled += np.linalg.norm(self.position[0:3] - self.position_prev[0:3])
+
+        self.position_prev = self.position
+
     def handle_request(self, request):
         packed_request = {
             'command':  request.command,
@@ -269,17 +296,16 @@ class PathController(object):
 
             res = self.act_on_command[cmd](**packed_request)
 
-            # automatically start the new path
+            # (default) automatically start the new path
             if res.get('path_id', None) != None:
                 self.cmd_start()
-                # rospy.loginfo('%s: starting path from request with id: %s', self.name, res['path_id'])
 
         except Exception:
             tb = traceback.format_exc()
             rospy.logerr('%s: error in processing topic request:\n%s', self.name, tb)
 
 
-    def handle_path_srv(self, request):
+    def handle_service(self, request):
         packed_request = {
             'command':  request.command,
             'points':   request.points
@@ -318,14 +344,15 @@ class PathController(object):
 
             self.state = S_RUNNING
             self.path_status = P_RUNNING
-            self.path_time_end = -1
+            self.path_time_end = -1.0
+            self.distance_travelled = 0.0
+
         except rospy.ServiceException:
             tb = traceback.format_exc()
             rospy.logerr('%s: controller service error:\n%s', self.name, tb)
             return {'error': 'controller switch failed'}
 
         return {}
-
 
     def cmd_hover(self, point=None, timeout=None, **kwargs):
         # default hover at the last known pos
@@ -347,7 +374,6 @@ class PathController(object):
 
         return {}
 
-
     def cmd_reset(self, reason='abort', **kwargs):
         try:
             self.state = S_RESET
@@ -356,10 +382,10 @@ class PathController(object):
             self.input_points = None
             self.trajectory = None
 
-            self.path_timeout = 0
-            self.path_time_end = -1
+            self.path_timeout = 0.0
+            self.path_time_end = -1.0
 
-            # TODO: change this by parsing the "reason" parameter (abort --> P_ABORT, anything else --> P_IDLE)
+            # change this by parsing the "reason" parameter (abort --> P_ABORT, anything else --> P_IDLE)
             if self.path_status != P_IDLE:
                 self.path_status = P_ABORT
 
@@ -373,12 +399,10 @@ class PathController(object):
             return {'error': 'controller switch failed'}
         return {}
 
-
     def cmd_path(self, mode=None, points=None, **kwargs):
         if mode is None:
             mode = PATH_LINES
             rospy.logwarn('%s: mode not specified, defaulting to %s', self.name, mode)
-            #return {'error': 'mode not specified'}
 
         if points is None:
             rospy.logerr('%s: no points specified', self.name)
@@ -391,7 +415,7 @@ class PathController(object):
             points_array[i] = np.array(point.values)
 
         # if missing set timeout to a negative number (infinite time)
-        self.path_timeout = float(kwargs.get('timeout', -1))
+        self.path_timeout = float(kwargs.get('timeout', -1.0))
 
         if self.path_timeout < 0:
             rospy.logwarn('%s: path requested without timeout', self.name)
@@ -402,17 +426,18 @@ class PathController(object):
             PATH_FAST: ps.FastTimeStrategy
         }
 
-        # constructor arguments
+        # path constructor arguments
+        #   this will pass any optional parameters from the request to the path generator
         path_options = {}
         path_options['position'] = self.position
         path_options['points'] = points_array
-        path_options.update(kwargs)                 # pass any optional parameters from the request to the path mode
+        path_options.update(kwargs)
 
         try:
-            #self.path_mode = generate_path[self.path_mode](**path_options)
             self.path_obj = generate_path[self.path_mode](**path_options)
             self.path_id += 1
             self.path_time_start = rospy.Time().now().to_sec()
+            self.distance_travelled = 0.0
 
             rospy.loginfo('%s: new path accepted [id: %d] with timeout %.2f', self.name, self.path_id, self.path_timeout)
             #rospy.loginfo('%s: path to follow:\n%s', self.name, self.path_obj.points)
@@ -421,26 +446,6 @@ class PathController(object):
             return {'error': 'unknown path mode'}
 
         return {'path_id': str(self.path_id)}
-
-
-    def update_nav(self, data):
-        self.position = np.array([
-            data.position.north,
-            data.position.east,
-            data.position.depth,
-            data.orientation.roll,
-            data.orientation.pitch,
-            data.orientation.yaw
-        ])
-
-        self.velocity = np.array([
-            data.body_velocity.x,
-            data.body_velocity.y,
-            data.body_velocity.z,
-            data.orientation_rate.roll,
-            data.orientation_rate.pitch,
-            data.orientation_rate.yaw
-        ])
 
 
     def send_position_request(self):
@@ -468,11 +473,11 @@ class PathController(object):
             # if self.path_status == P_RUNNING:
             #     pos = self.position
 
-            ps.distance_completed = self.path_obj.distance_completed(pos)
+            ps.distance_completed = self.distance_travelled         # was: self.path_obj.distance_completed(pos)
             ps.distance_left = self.path_obj.distance_left(pos)
 
             ps.time_elapsed = self.path_time_elapsed
-            ps.speed_average = ps.distance_completed / ps.time_elapsed
+            ps.speed_average = self.distance_travelled / self.path_time_elapsed
 
             if ps.speed_average != 0:
                 ps.time_arrival = ps.distance_left / ps.speed_average
@@ -482,13 +487,12 @@ class PathController(object):
             ps.time_start = self.path_time_start
             ps.time_end = self.path_time_end
 
-            ps.path_completion = (ps.distance_completed / self.path_obj.total_distance) * 100.0
+            ps.path_completion = (self.path_obj.distance_completed(pos) / self.path_obj.total_distance) * 100.0
 
         self.pub_path_status.publish(ps)
 
         if self.visualization:
             self.publish_markers()
-
 
     def publish_markers(self):
         if self.path_obj is None:
