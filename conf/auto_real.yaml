@@ -19,18 +19,18 @@ pilot:
         # position gains
         pos_x: { kp: 0.250, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 8 m
         pos_y: { kp: 0.500, ki: 0.0, kd: 0.0, lim: 0.1 }        # max out at 2 m
-        pos_z: { kp: 0.50, ki: 0.005, kd: 0.0, lim: 0.1 }
-        pos_k: { kp: 0.0, ki: 0.0, kd: 0.0, lim: 0.0 }
-        pos_m: { kp: 1.273, ki: 0.10, kd: 0.0, lim: 5.0 }         # 4 / pi --> max out at 45 deg
+        pos_z: { kp: 0.500, ki: 0.005, kd: 0.0, lim: 0.1 }
+        pos_k: { kp: 0.000, ki: 0.0, kd: 0.0, lim: 0.0 }
+        pos_m: { kp: 1.273, ki: 0.0, kd: 0.0, lim: 0.0 }         # 4 / pi --> max out at 45 deg
         pos_n: { kp: 0.63661, ki: 0.0, kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
 
         # velocity gains
-        vel_u: { kp: 40.0, ki: 0.1, kd: 0.0, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
-        vel_v: { kp: 40.0, ki: 0.1, kd: 0.0, lim: 1.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
-        vel_w: { kp: 60.0, ki: 0.75, kd: 20.0, lim: 4.0, input_lim: 1 }
-        vel_p: { kp: 0.00, ki: 0.0, kd: 0.0, lim: 0.1, input_lim: 1 }
-        vel_q: { kp: 1.0, ki: 0.05, kd: 0.0, lim: 100.0, input_lim: 5.0 }
-        vel_r: { kp: 40.0, ki: 0.001, kd: 0.0, lim: 4.0, input_lim: 1 }
+        vel_u: { kp: 40.0, ki: 0.30, kd: 0.00, lim: 8.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        vel_v: { kp: 60.0, ki: 0.50, kd: 0.00, lim: 8.0, input_lim: 1 }       # when input is 1 m produces 40 Newtons
+        vel_w: { kp: 60.0, ki: 0.50, kd: 2.00, lim: 10.0, input_lim: 1 }
+        vel_p: { kp: 0.00, ki: 0.00, kd: 0.00, lim: 0.0, input_lim: 1 }
+        vel_q: { kp: 1.00, ki: 0.05, kd: 0.00, lim: 500.0, input_lim: 1 }
+        vel_r: { kp: 40.0, ki: 0.01, kd: 0.00, lim: 3.0, input_lim: 1 }
 
         # adapt coefficients
         adapt_coeff_pos: { x: 0.5, y: 0.5, z: 0.5, k: 0.0, m: 1.0, n: 1.0 }

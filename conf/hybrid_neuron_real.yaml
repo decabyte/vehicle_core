@@ -5,7 +5,7 @@ pilot:
         neuron_model: true
 
         # position gains
-        kpos: 2.5
+        kpos: 7.5
         kposprev: 0.1
         kgamma: 1.0
         
@@ -20,8 +20,8 @@ pilot:
 
         # neuron params
         A: [4, 4, 4, 4, 4, 2]
-        B: [6, 6, 6, 10, 10, 2]
-        D: [6, 6, 6, 10, 10, 2]
+        B: [10, 10, 10, 10, 10, 2]
+        D: [10, 10, 10, 10, 10, 2]
 
         # default parameters
         #   self.ku = self.dt / np.sqrt(2.0 * (self.lim_pos**2))
