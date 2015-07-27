@@ -107,7 +107,7 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
 3) Launch file which corresponds to the joystick. If the joystick you are intending to use is not at /dev/input/js0 
  then you will have to specify its path as an argument, e.g.:
  
-    roslaunch vehicle_core joystick.launch /dev/input/js2
+    roslaunch vehicle_core joystick.launch dev:=/dev/input/js2
     
  Otherwise you do not have to specify it explicitly.
  
@@ -126,7 +126,8 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
   - X button toggles 'autopilot' - vehicle goes to the last point requested
   - square button sends current position request
   - (i.e. sequential combination square + X is 'hold this position')
-  - R1 button is boost: the forces due to other actions are multiplied by two while the button is pressed
+  - circle button switches off the thrusters at the driver level (use to make sure that the vehicle cannot move)
+  - R1 button is boost: the forces due to other actions are increased while the button is pressed
   
 ## Guidelines
 
