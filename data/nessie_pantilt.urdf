@@ -5,7 +5,7 @@
         <visual>
             <origin rpy="0 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="package://navigation_simulator/data/nessie.3ds"/>
+                <mesh filename="package://vehicle_core/data/nessie.3ds"/>
             </geometry>
         </visual>
     </link>

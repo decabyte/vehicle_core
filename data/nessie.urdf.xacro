@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="nessie">
+
+    <xacro:arg name="name" default="base_link"/>
+
+    <link name="$(arg name)">
+        <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <mesh filename="package://vehicle_core/data/nessie.3ds"/>
+            </geometry>
+        </visual>
+    </link>
+
+</robot>
