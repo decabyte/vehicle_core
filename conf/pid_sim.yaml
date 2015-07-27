@@ -16,11 +16,11 @@ pilot:
 
         # velocity gains
         vel_u: { kp: 40.0, ki: 0.300, kd: 0.00, lim: 8.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
-        vel_v: { kp: 60.0, ki: 0.500, kd: 0.00, lim: 8.0, input_lim: 1 }
+        vel_v: { kp: 40.0, ki: 0.300, kd: 0.00, lim: 8.0, input_lim: 1 }
         vel_w: { kp: 20.0, ki: 0.250, kd: 0.20, lim: 1.0, input_lim: 1 }
         vel_p: { kp: 0.00, ki: 0.000, kd: 0.00, lim: 0.0, input_lim: 1 }
         vel_q: { kp: 1.00, ki: 0.005, kd: 0.00, lim: 500.0, input_lim: 1 }
-        vel_r: { kp: 30.0, ki: 0.001, kd: 0.00, lim: 1.0, input_lim: 1 }
+        vel_r: { kp: 40.0, ki: 0.001, kd: 0.00, lim: 1.0, input_lim: 1 }
 
         # depth compensation (takes into account trimming)
         offset_z: 2.5

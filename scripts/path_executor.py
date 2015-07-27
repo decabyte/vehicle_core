@@ -311,9 +311,10 @@ def parse_arguments():
     # navigation group
     # parser.add_argument('n_offset', type=float, help='North offset of initial point in wavetank coordinates.')
     # parser.add_argument('e_offset', type=float, help='East offset of initial point in wavetank coordinates.')
-    parser.add_argument('yaw_offset', type=float, help='Yaw offset between magnetic north and wavetank coordinates.')
+    parser.add_argument('path', help='Path file to execute (es. simple.json).')
+    parser.add_argument('yaw_offset', type=float, nargs='?', default=0.0, help='Yaw offset between magnetic north and wavetank coordinates.')
     parser.add_argument('--mode', default='lines', help='Select the navigation mode.')
-    parser.add_argument('--path', help='Path file to execute (es. simple.json).')
+
 
     # output group
     parser.add_argument('--output', default='last', help='Output file to save during the experiments.')
