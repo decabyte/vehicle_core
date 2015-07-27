@@ -206,8 +206,8 @@ class RVizInterface(object):
             # generate smooth path
             mode = 'fast'
 
-            p1 = (10.0, self.pos[5])
-            p2 = (10.0, goal[5])
+            p1 = (6.0, self.pos[5])
+            p2 = (6.0, goal[5])
             steps = max(math.floor(distance / DEFAULT_SPACING), 100)
 
             points = tt.format_bezier_input(self.pos, p1, p2, goal, degrees=False)
