@@ -513,9 +513,11 @@ class PathController(object):
         mm.action = Marker.ADD
         mm.lifetime = rospy.Duration(self.ts_status * 2)
 
-        mm.type = Marker.LINE_STRIP
-        mm.scale.x = 0.1
-        mm.color.a = 1.0
+        mm.type = Marker.SPHERE_LIST
+        mm.scale.x = 0.15
+        mm.scale.y = 0.15
+        mm.scale.z = 0.15
+        mm.color.a = 1.00
 
         for n, wps in enumerate(self.path_obj.points):
             mm.points.append(Point(wps[0], -wps[1], -wps[2]))

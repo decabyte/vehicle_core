@@ -51,11 +51,12 @@ import tf.transformations as tft
 
 from vehicle_core.path import trajectory_tools as tt
 
-from vehicle_interface.msg import PathRequest, PathStatus, PilotRequest, PilotStatus, Vector6Stamped, Vector6
 from auv_msgs.msg import NavSts
 from diagnostic_msgs.msg import KeyValue
 from geometry_msgs.msg import PoseStamped, WrenchStamped
 from visualization_msgs.msg import Marker, MarkerArray
+
+from vehicle_interface.msg import PathRequest, PathStatus, PilotRequest, PilotStatus, Vector6Stamped, Vector6
 
 # topics
 TOPIC_NAV = 'nav/nav_sts'
@@ -75,7 +76,14 @@ MODE_POSITION = 'position'
 MODE_PATH = 'path'
 
 # config
-DEFAULT_SPACING = 4.0       # meter
+DEFAULT_SPACING = 4.0       # meters
+DEFAULT_PROXIMITY = 8.0     # meters
+DEFAULT_REFRESH = 0.5       # seconds
+
+TEXT_STATUS = """
+Pilot: {} ({})
+Path: {} ({})
+"""
 
 
 class RVizInterface(object):
@@ -87,17 +95,24 @@ class RVizInterface(object):
         self.pos = np.zeros(6)
         self.vel = np.zeros(6)
 
+        self.status_pilot = None
+
         # ros interface
         self.sub_poses = rospy.Subscriber(TOPIC_POSE2D, PoseStamped, self.handle_poses, queue_size=1)
         self.pub_marker = rospy.Publisher(TOPIC_MARKER, Marker, queue_size=1)
-        self.pub_wrench = rospy.Publisher(TOPIC_WRENCH, WrenchStamped, queue_size=1)
 
-        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.handle_nav, queue_size=1, tcp_nodelay=True)
-        self.sub_pilot = rospy.Subscriber(TOPIC_PILOT_STS, PilotStatus, self.handle_pilot_status, queue_size=1, tcp_nodelay=True)
-        self.sub_pilot = rospy.Subscriber(TOPIC_FORCES, Vector6Stamped, self.handle_forces, queue_size=1, tcp_nodelay=True)
+        self.sub_nav = rospy.Subscriber(TOPIC_NAV, NavSts, self.handle_nav, queue_size=10)
+        self.sub_pilot = rospy.Subscriber(TOPIC_PILOT_STS, PilotStatus, self.handle_pilot_status, queue_size=1)
+        self.sub_path = rospy.Subscriber(TOPIC_PATH_STS, PathStatus, self.handle_path_status, queue_size=1)
+
+        #self.pub_wrench = rospy.Publisher(TOPIC_WRENCH, WrenchStamped, queue_size=1)
+        #self.sub_forces = rospy.Subscriber(TOPIC_FORCES, Vector6Stamped, self.handle_forces, queue_size=1, tcp_nodelay=True)
 
         self.pub_pilot = rospy.Publisher(TOPIC_PILOT_POS, PilotRequest, queue_size=1)
         self.pub_path = rospy.Publisher(TOPIC_PATH_REQ, PathRequest, queue_size=1)
+
+        # timers
+        self.t_hmi = rospy.Timer(rospy.Duration(DEFAULT_REFRESH), self.send_text_marker)
 
         # user log
         rospy.loginfo('%s: started in %s mode ...', self.name, self.mode)
@@ -124,21 +139,24 @@ class RVizInterface(object):
         ])
 
     def handle_pilot_status(self, data):
-        pass
+        self.status_pilot = data
 
-    def handle_forces(self, data):
-        # send wrench for rviz visualizer
-        ws = WrenchStamped()
-        ws.header.stamp = rospy.Time.now()
-        ws.header.frame_id = 'base_link'
-        ws.wrench.force.x = data.values[0]
-        ws.wrench.force.y = data.values[1]
-        ws.wrench.force.z = data.values[2]
-        ws.wrench.torque.x = data.values[3]
-        ws.wrench.torque.y = data.values[4]
-        ws.wrench.torque.z = data.values[5]
+    def handle_path_status(self, data):
+        self.status_path = data
 
-        self.pub_wrench.publish(ws)
+    # def handle_forces(self, data):
+    #     # send wrench for rviz visualizer
+    #     ws = WrenchStamped()
+    #     ws.header.stamp = rospy.Time.now()
+    #     ws.header.frame_id = 'base_link'
+    #     ws.wrench.force.x = data.values[0]
+    #     ws.wrench.force.y = data.values[1]
+    #     ws.wrench.force.z = data.values[2]
+    #     ws.wrench.torque.x = data.values[3]
+    #     ws.wrench.torque.y = data.values[4]
+    #     ws.wrench.torque.z = data.values[5]
+    #
+    #     self.pub_wrench.publish(ws)
 
     def handle_poses(self, data):
         # parse data
@@ -160,13 +178,11 @@ class RVizInterface(object):
         pose[4] = -orientation[1]
         pose[5] = -orientation[2]
 
-        self.process_pose(pose)
-
-    def process_pose(self, pose):
         if self.mode == MODE_POSITION:
             self.send_position_req(pose)
         else:
             self.send_path_req(pose)
+
 
     def send_position_req(self, position):
         # user log
@@ -182,7 +198,7 @@ class RVizInterface(object):
         # path info
         distance = tt.distance_between(self.pos, goal)
 
-        if distance <= 8.0:
+        if distance <= DEFAULT_PROXIMITY:
             # generate linear path
             mode = 'lines'
             wps = tt.interpolate_leg(self.pos, goal, face_goal=True, spacing=DEFAULT_SPACING, dimensions=2)
@@ -190,8 +206,8 @@ class RVizInterface(object):
             # generate smooth path
             mode = 'fast'
 
-            p1 = (5.0, self.pos[5])
-            p2 = (5.0, goal[5])
+            p1 = (10.0, self.pos[5])
+            p2 = (10.0, goal[5])
             steps = max(math.floor(distance / DEFAULT_SPACING), 100)
 
             points = tt.format_bezier_input(self.pos, p1, p2, goal, degrees=False)
@@ -207,11 +223,41 @@ class RVizInterface(object):
         msg.points = [Vector6(wp) for wp in wps]
         msg.options = [
             KeyValue('mode', mode),
-            KeyValue('target_speed', '1.0'),
+            KeyValue('target_speed', '0.75'),
             KeyValue('look_ahead', '5.0'),
         ]
 
         self.pub_path.publish(msg)
+
+    def send_text_marker(self, event=None):
+        if self.status_pilot is None:
+            return
+
+        mm = Marker()
+        mm.header.stamp = rospy.Time.now()
+        mm.header.frame_id = 'map'
+        mm.ns = 'hmi'
+        mm.id = 0
+        mm.action = Marker.ADD
+        mm.lifetime = rospy.Duration(1, 0)
+
+        mm.type = Marker.TEXT_VIEW_FACING
+        mm.scale.z = 0.20
+        mm.color.r = 1.0
+        mm.color.g = 1.0
+        mm.color.b = 1.0
+        mm.color.a = 1.0
+
+        mm.pose.position.x = self.pos[0]
+        mm.pose.position.y = -(self.pos[1])
+        mm.pose.position.z = -(self.pos[2] + 1.0)
+
+        mm.text = TEXT_STATUS.format(
+            self.status_pilot.status, self.status_pilot.mode,
+            self.status_path.path_status, self.status_path.navigation_status
+        )
+
+        self.pub_marker.publish(mm)
 
 
 if __name__ == '__main__':

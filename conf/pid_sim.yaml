@@ -9,18 +9,18 @@ pilot:
         # position gains
         pos_x: { kp: 0.250, ki: 0.000, kd: 0.0, lim: 0.1 }        # max out at 8 m
         pos_y: { kp: 0.500, ki: 0.000, kd: 0.0, lim: 0.1 }        # max out at 2 m
-        pos_z: { kp: 0.500, ki: 0.005, kd: 0.0, lim: 0.1 }
+        pos_z: { kp: 0.500, ki: 0.000, kd: 0.0, lim: 0.1 }
         pos_k: { kp: 0.000, ki: 0.000, kd: 0.0, lim: 0.0 }
-        pos_m: { kp: 1.273, ki: 0.000, kd: 0.0, lim: 5.0 }        # 4 / pi --> max out at 45 deg
+        pos_m: { kp: 1.273, ki: 0.000, kd: 0.0, lim: 0.0 }        # 4 / pi --> max out at 45 deg
         pos_n: { kp: 0.63661, ki: 0.0, kd: 0.0, lim: 0.0 }        # 2 / pi --> max out at 90 deg
 
         # velocity gains
-        vel_u: { kp: 40.0, ki: 0.500, kd: 0.3, lim: 1.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
-        vel_v: { kp: 40.0, ki: 0.500, kd: 0.3, lim: 1.0, input_lim: 1 }
-        vel_w: { kp: 20.0, ki: 0.250, kd: 0.2, lim: 1.0, input_lim: 1 }
-        vel_p: { kp: 0.00, ki: 0.000, kd: 0.0, lim: 0.0, input_lim: 1 }
-        vel_q: { kp: 1.00, ki: 0.025, kd: 0.0, lim: 1000.0, input_lim: 5.0 }
-        vel_r: { kp: 30.0, ki: 0.050, kd: 0.1, lim: 1.0, input_lim: 1 }
+        vel_u: { kp: 40.0, ki: 0.300, kd: 0.00, lim: 8.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        vel_v: { kp: 60.0, ki: 0.500, kd: 0.00, lim: 8.0, input_lim: 1 }
+        vel_w: { kp: 20.0, ki: 0.250, kd: 0.20, lim: 1.0, input_lim: 1 }
+        vel_p: { kp: 0.00, ki: 0.000, kd: 0.00, lim: 0.0, input_lim: 1 }
+        vel_q: { kp: 1.00, ki: 0.005, kd: 0.00, lim: 500.0, input_lim: 1 }
+        vel_r: { kp: 30.0, ki: 0.001, kd: 0.00, lim: 1.0, input_lim: 1 }
 
         # depth compensation (takes into account trimming)
         offset_z: 2.5
