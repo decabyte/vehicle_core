@@ -82,8 +82,8 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
   
 4) On Nessie A (after getting a correct initial position):
 
-    roslaunch vehicle_core pilot_real.launch
-    rosrun auv_nav auv_nav
+    roslaunch vehicle_core pilot.launch ctrl_config:=pid_real.yaml
+    rosrun auv_nav nav
 
 5) Optional visualization (on Trieste or external laptop run):
     
