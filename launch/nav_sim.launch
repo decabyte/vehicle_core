@@ -13,7 +13,8 @@
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/thruster_model.yaml"/>
 
-    <param name="robot_description" command="$(arg vehicle_urdf)"/>
+    <!-- load the robot_description file in a launch file where you use it keep this one just for nav simulation-->
+    <!-- <param name="robot_description" command="$(arg vehicle_urdf)"/> -->
     
     <!-- start the simulated thrusters -->
     <node name="thrusters_simulator" pkg="vehicle_core" type="node_thruster_sim.py" output="screen">
