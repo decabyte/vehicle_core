@@ -1,0 +1,89 @@
+<launch>
+    <!-- joystick device:  -->
+    <!--    this can be one of /dev/input/js0 or /dev/input/js1 according to the number of HID devices connected -->
+    <arg name="dev_a" default="/dev/input/js0" />
+    <arg name="dev_b" default="/dev/input/js1" />
+
+    <group ns="nessie_a">
+        <!-- joystick input node -->
+        <node name="joystick_input" pkg="joy" type="joy_node" respawn="false">
+            <!--
+                Input device for joystick.
+                Default: /dev/input/js1
+            -->
+            <param name="dev" type="string" value="$(arg dev_a)"/>
+
+            <!--
+                Output is zero for axis in deadzone.
+                Range: [-0.9, 0.9].
+                Default 0.05
+            -->
+            <param name="deadzone" value="0.05"/>
+
+            <!--
+                If no events, repeats last known state at this rate.
+                Default: 0 (disabled)
+            -->
+            <param name="autorepeat_rate" value="10"/>
+
+            <!--
+                Waits for this interval (seconds) after receiving an event.
+                If multiple events happen in this interval, only one message will be sent.
+                Reduces number of messages. Default: 0.001.
+            -->
+            <param name="coalesce_interval" value="0.01"/>
+
+            <!-- remap to a different topic (default is /joy) -->
+            <!-- <remap from="joy" to="joy_primary" /> -->
+        </node>
+
+        <!-- nessie joystick driver (from joystick to nessie commands) -->
+        <node name="nessie_joystick" pkg="vehicle_core" type="node_joystick.py" respawn="false" output="screen">
+            <!--input topic for joystick messages-->
+            <param name="input_topic" type="string" value="joy"/>
+            <param name="wait_services" type="boolean" value="true"/>
+        </node>
+    </group>
+
+    <group ns="nessie_b">
+        <!-- joystick input node -->
+        <node name="joystick_input" pkg="joy" type="joy_node" respawn="false">
+            <!--
+                Input device for joystick.
+                Default: /dev/input/js1
+            -->
+            <param name="dev" type="string" value="$(arg dev_b)"/>
+
+            <!--
+                Output is zero for axis in deadzone.
+                Range: [-0.9, 0.9].
+                Default 0.05
+            -->
+            <param name="deadzone" value="0.05"/>
+
+            <!--
+                If no events, repeats last known state at this rate.
+                Default: 0 (disabled)
+            -->
+            <param name="autorepeat_rate" value="10"/>
+
+            <!--
+                Waits for this interval (seconds) after receiving an event.
+                If multiple events happen in this interval, only one message will be sent.
+                Reduces number of messages. Default: 0.001.
+            -->
+            <param name="coalesce_interval" value="0.01"/>
+
+            <!-- remap to a different topic (default is /joy) -->
+            <!-- <remap from="joy" to="joy_primary" /> -->
+        </node>
+
+        <!-- nessie joystick driver (from joystick to nessie commands) -->
+        <node name="nessie_joystick" pkg="vehicle_core" type="node_joystick.py" respawn="false" output="screen">
+            <!--input topic for joystick messages-->
+            <param name="input_topic" type="string" value="joy"/>
+            <param name="wait_services" type="boolean" value="true"/>
+        </node>
+    </group>
+
+</launch>
