@@ -383,6 +383,8 @@ def main():
     config.update(nav_config)
     config.update({
         'topic_odom': rospy.get_param('~topic_odom', TOPIC_ODM),
+        'output_nav': rospy.get_param('~topic_nav', TOPIC_NAV),
+        'input_forces': rospy.get_param('~topic_forces', TOPIC_FRC),
         'frame_parent': rospy.get_param('~frame_parent', FRAME_PARENT),
         'frame_odom': rospy.get_param('~frame_odom', FRAME_ODOM),
         'frame_child': rospy.get_param('~frame_child', FRAME_CHILD),
