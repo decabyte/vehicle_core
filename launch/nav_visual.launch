@@ -3,6 +3,10 @@
     <!-- default args -->
     <arg name="use_hmi" default="false" />
     <arg name="use_uwsim" default="false" />
+    <arg name="vehicle_urdf" default="cat $(find vehicle_core)/data/nessie.urdf" />
+
+    <!-- load the robot_description, used for rviz -->
+    <param name="robot_description" command="$(arg vehicle_urdf)"/>
 
     <!-- rviz -->
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find vehicle_core)/conf/nav_sim.rviz"/>

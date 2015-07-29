@@ -8,11 +8,11 @@
 
     <!-- robot #1 -->
     <group ns="nessie_a">
+        <arg name="vehicle_urdf" value="$(find xacro)/xacro.py $(find vehicle_core)/data/nessie.urdf.xacro name:=nessie_a"/>
+
         <include file="$(find vehicle_core)/launch/nav_sim.launch">
             <arg name="verbose" value="$(arg nav_verbose)"/>
             <arg name="frame_child" default="nessie_a" />
-
-            <arg name="vehicle_urdf" value="$(find xacro)/xacro.py $(find vehicle_core)/data/nessie.urdf.xacro name:=nessie_a"/>
         </include>
 
         <include file="$(find vehicle_core)/launch/pilot.launch">
@@ -21,15 +21,18 @@
         </include>
 
         <include file="$(find vehicle_core)/launch/path_controller.launch"/>
+
+        <!-- load the robot_description, used for rviz -->
+        <param name="robot_description" command="$(arg vehicle_urdf)"/>
     </group>
 
     <!-- robot #2 -->
     <group ns="nessie_b">
+        <arg name="vehicle_urdf" value="$(find xacro)/xacro.py $(find vehicle_core)/data/nessie.urdf.xacro name:=nessie_b"/>
+
         <include file="$(find vehicle_core)/launch/nav_sim.launch">
             <arg name="verbose" value="$(arg nav_verbose)"/>
             <arg name="frame_child" default="nessie_b" />
-
-            <arg name="vehicle_urdf" value="$(find xacro)/xacro.py $(find vehicle_core)/data/nessie.urdf.xacro name:=nessie_b"/>
         </include>
 
         <include file="$(find vehicle_core)/launch/pilot.launch">
@@ -38,6 +41,9 @@
         </include>
 
         <include file="$(find vehicle_core)/launch/path_controller.launch"/>
+
+        <!-- load the robot_description, used for rviz -->
+        <param name="robot_description" command="$(arg vehicle_urdf)"/>
     </group>
 
     <node pkg="rosservice" type="rosservice" name="nav_offset" args="call --wait /nessie_b/nav/offset '[0.0, 2.0, 0.0, 0.0, 0.0, 0.0]'"/>

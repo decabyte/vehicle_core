@@ -5,6 +5,7 @@
     <arg name="nav_verbose" default="false" />
     <arg name="pilot_verbose" default="false" />
     <arg name="ctrl_config" default="pid_sim.yaml" />
+    <arg name="vehicle_urdf" default="cat $(find vehicle_core)/data/nessie.urdf" />
 
     <!-- includes -->
     <include file="$(find vehicle_core)/launch/nav_sim.launch">
@@ -22,6 +23,7 @@
     <group if="$(arg use_gui)">
         <include file="$(find vehicle_core)/launch/nav_visual.launch">
             <arg name="use_hmi" value="true"/>
+            <arg name="vehicle_urdf" value="$(arg vehicle_urdf)" />
         </include>
     </group>
 

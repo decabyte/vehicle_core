@@ -3,7 +3,6 @@
     <!-- default args -->
     <arg name="verbose" default="false" />
     <arg name="frame_child" default="base_link" />
-    <arg name="vehicle_urdf" default="cat $(find vehicle_core)/data/nessie.urdf" />
 
     <!-- use Nessie AUV throttle limit -->
     <param name="thrusters/throttle_limit" value="85"/>
@@ -12,9 +11,6 @@
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_nav.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/simulation_model.yaml"/>
     <rosparam command="load" file="$(find vehicle_core)/conf/thruster_model.yaml"/>
-
-    <!-- load the robot_description file in a launch file where you use it keep this one just for nav simulation-->
-    <!-- <param name="robot_description" command="$(arg vehicle_urdf)"/> -->
     
     <!-- start the simulated thrusters -->
     <node name="thrusters_simulator" pkg="vehicle_core" type="node_thruster_sim.py" output="screen">
