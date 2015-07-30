@@ -59,7 +59,6 @@ TOPIC_JOY = 'joy'
 TOPIC_CMD = 'thrusters/commands'
 TOPIC_FORCES = 'user/forces'
 TOPIC_STAY = 'pilot/body_req'
-
 SRV_THRUSTERS = 'thrusters/switch'
 SRV_CONTROLLER = 'pilot/switch'
 
@@ -99,16 +98,20 @@ MODE_FORCE = 'force'
 MODE_SPEED = 'speed'
 MODE_DIRECT = 'direct'
 
+VEHICLE_AUV = 'auv'
+VEHICLE_EMILY = 'emily'
+
 
 class JoystickInterface(object):
 
-    def __init__(self, name, speed_limit, input_topic, k_exp=K_EXP):
+    def __init__(self, name, speed_limit, topic_input, topic_throttle, topic_stay, topic_forces, srv_thrusters, srv_controller, vehicle, k_exp=K_EXP):
         self.name = name
         self.speed_limit = speed_limit
-        self.input_topic = input_topic
+        self.input_topic = topic_input
 
         # joystick state
         self.mode = MODE_FORCE
+        self.vehicle = vehicle
         self.k_exp = np.clip(k_exp, 0.1, 2)     # clip exponential term (zero will produce errors)
 
         self.mode_controller = False
@@ -121,13 +124,13 @@ class JoystickInterface(object):
 
         # ros interface
         self.sub_joy = rospy.Subscriber(self.input_topic, Joy, self.handle_joystick, tcp_nodelay=True, queue_size=1)
-        self.pub_thr = rospy.Publisher(TOPIC_CMD, ThrusterCommand, tcp_nodelay=True, queue_size=1)
+        self.pub_thr = rospy.Publisher(topic_throttle, ThrusterCommand, tcp_nodelay=True, queue_size=1)
         self.pub_for = rospy.Publisher(TOPIC_FORCES, Vector6Stamped, tcp_nodelay=True, queue_size=1)
-        self.pub_stay = rospy.Publisher(TOPIC_STAY, PilotRequest, tcp_nodelay=True, queue_size=1)
+        self.pub_stay = rospy.Publisher(topic_stay, PilotRequest, tcp_nodelay=True, queue_size=1)
 
         # services
-        self.srv_thrusters = rospy.ServiceProxy(SRV_THRUSTERS, BooleanService)
-        self.srv_controller = rospy.ServiceProxy(SRV_CONTROLLER, BooleanService)
+        self.srv_thrusters = rospy.ServiceProxy(srv_thrusters, BooleanService)
+        self.srv_controller = rospy.ServiceProxy(srv_controller, BooleanService)
 
         # rosinfo
         rospy.loginfo('%s started in mode: %s', self.name, self.mode)
@@ -222,20 +225,44 @@ class JoystickInterface(object):
         else:
             k_scaling = K_REDUCED       # request only a fraction of max thrust
 
-        # process joystick input
-        forces = k_scaling * np.array([surge, sway, heave, 0, pitch, yaw])
+        if self.vehicle == VEHICLE_AUV:
+            # process joystick input
+            forces = k_scaling * np.array([surge, sway, heave, 0, pitch, yaw])
 
-        # exponential mapping
-        forces = np.sign(forces) * (np.exp(self.k_exp * np.abs(forces)) - 1) / (np.exp(self.k_exp) - 1)
+            # exponential mapping
+            forces = np.sign(forces) * (np.exp(self.k_exp * np.abs(forces)) - 1) / (np.exp(self.k_exp) - 1)
 
-        # forces clipping
-        forces = np.clip(forces, -1, 1) * tc.MAX_U
+            forces = np.clip(forces, -1, 1)
 
-        # FORCES command mode default
-        uf = Vector6Stamped()
-        uf.header.stamp = rospy.Time.now()
-        uf.values = forces.flatten().tolist()
-        self.pub_for.publish(uf)
+            # forces clipping
+            forces *= tc.MAX_U
+
+            # FORCES command mode default
+            uf = Vector6Stamped()
+            uf.header.stamp = rospy.Time.now()
+            uf.values = forces.flatten().tolist()
+            self.pub_for.publish(uf)
+
+        elif self.vehicle == VEHICLE_EMILY:
+            # send only if controller is enabled
+            if not self.mode_controller:
+                # map joystick to Emily's controls
+                throttle = np.array([surge, -yaw, 0, 0, 0, 0])
+
+                # exponential mapping
+                throttle = np.sign(throttle) * (np.exp(self.k_exp * np.abs(throttle)) - 1) / (np.exp(self.k_exp) - 1)
+
+                throttle = np.clip(throttle, -1, 1)
+                # forward thrust greater than 0
+                throttle[0] = np.maximum(throttle[0], 0)
+
+                # scale up the range
+                throttle *= 100
+
+                thc = ThrusterCommand()
+                thc.header.stamp = rospy.Time.now()
+                thc.throttle = throttle
+                self.pub_thr.publish(thc)
 
         # # MULTIPLE MODES (this should be disabled after initial testing and debugging)
         # # FORCES command mode
@@ -289,7 +316,13 @@ if __name__ == '__main__':
 
     # load parameters
     throttle_limit = int(rospy.get_param('thrusters/throttle_limit', tc.MAX_THROTTLE))
-    input_topic = rospy.get_param('~input_topic', TOPIC_JOY)
+    topic_input = rospy.get_param('~input_topic', TOPIC_JOY)
+    topic_throttle = rospy.get_param('~topic_throttle', TOPIC_CMD)
+    topic_stay = rospy.get_param('~topic_stay', TOPIC_STAY)
+    topic_forces = rospy.get_param('~topic_forces', TOPIC_FORCES)
+    srv_thrusters = rospy.get_param('~srv_thrusters', SRV_THRUSTERS)
+    srv_controller = rospy.get_param('~srv_controller', SRV_CONTROLLER)
+    vehicle = rospy.get_param('~vehicle', VEHICLE_AUV)
     wait_services = bool(rospy.get_param('~wait_services', False))
 
     # check valid limit
@@ -297,7 +330,13 @@ if __name__ == '__main__':
 
     # console output
     rospy.loginfo('%s throttle limit: %d%%', rospy.get_name(), throttle_limit)
-    rospy.loginfo('%s input topic: %s', rospy.get_name(), input_topic)
+    rospy.loginfo('%s topic input: %s', rospy.get_name(), topic_input)
+    rospy.loginfo('%s topic throttle: %s', rospy.get_name(), topic_throttle)
+    rospy.loginfo('%s topic stay: %s', rospy.get_name(), topic_stay)
+    rospy.loginfo('%s topic forces: %s', rospy.get_name(), topic_forces)
+    rospy.loginfo('%s service thrusters: %s', rospy.get_name(), srv_thrusters)
+    rospy.loginfo('%s service controller: %s', rospy.get_name(), srv_controller)
+    rospy.loginfo('%s vehicle: %s', rospy.get_name(), vehicle)
     rospy.loginfo('%s wait services: %s', rospy.get_name(), wait_services)
 
     if wait_services:
@@ -307,6 +346,7 @@ if __name__ == '__main__':
         except rospy.ROSException as re:
             rospy.logerr('%s: services not available: %s', rospy.get_name(), re)
 
-    js = JoystickInterface(rospy.get_name(), throttle_limit, input_topic)
+    js = JoystickInterface(rospy.get_name(), throttle_limit, topic_input, topic_throttle, topic_stay, topic_forces,
+                           srv_thrusters, srv_controller, vehicle)
 
     rospy.spin()
