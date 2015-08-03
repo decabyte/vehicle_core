@@ -48,9 +48,9 @@ from __future__ import division
 import numpy as np
 import traceback
 
-import rospy
 import roslib
 roslib.load_manifest('vehicle_core')
+import rospy
 
 import tf
 import tf.transformations as tft
