@@ -51,9 +51,9 @@ from vehicle_core.util import conversions as cnv
 
 # default config
 DEFAULT_TOLERANCES = np.array([
-    0.5,                # meters
-    0.5,                # meters
-    0.5,                # meters
+    1.0,                # meters
+    1.0,                # meters
+    1.0,                # meters
     np.deg2rad(45),     # radians
     np.deg2rad(45),     # radians
     np.deg2rad(6)       # radians
