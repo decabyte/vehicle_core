@@ -96,6 +96,7 @@ class RVizInterface(object):
         self.vel = np.zeros(6)
 
         self.status_pilot = None
+        self.status_path = None
 
         # ros interface
         self.sub_poses = rospy.Subscriber(TOPIC_POSE2D, PoseStamped, self.handle_poses, queue_size=1)
@@ -230,7 +231,7 @@ class RVizInterface(object):
         self.pub_path.publish(msg)
 
     def send_text_marker(self, event=None):
-        if self.status_pilot is None:
+        if self.status_pilot is None or self.status_path is None:
             return
 
         mm = Marker()
