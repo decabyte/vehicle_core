@@ -92,6 +92,13 @@ Behind the scenes the simulation.launch scripts is running the following nodes:
 6) Enable the vehicle pilot (for safety the pilot is not sending thruster commands if not enabled by the user):
 
     rosservice call /pilot/switch "request: true"
+    
+7) For a desired path to be activated:
+
+    roslaunch vehicle_core path_controller.launch
+    vehicle_core/tests/pp_lines_path.sh
+    vehicle_core/scripts/path_cli.sh start
+  
 
 ## Using Joystick
 1) Connect the joystick to the computer you are using. At this point your computer will assign a path to it, typically
