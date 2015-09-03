@@ -39,7 +39,6 @@
 
 import numpy as np
 
-
 #pythran export compute_jacobian(float, float, float)
 def compute_jacobian(phi, theta, psi):
     """This functions computes the jacobian matrix used for converting body-frame to earth-frame coordinates.
@@ -241,11 +240,11 @@ def calc_model_forward(pos, vel, cog, cob, mass, inertia, W, B, mass_matrix, add
     D = calc_damping(vel, quadratic_coeff)
     G = calc_restoring(pos, cog, cob, W, B)
 
-    #F_c = np.dot(C, vel.reshape((6,1))).flatten()
-    #F_d = np.dot(D, vel.reshape((6,1))).flatten()
+    F_c = np.dot(C, vel.reshape((6,1))).flatten()
+    F_d = np.dot(D, vel.reshape((6,1))).flatten()
 
-    F_c = mat_vec_mult(C, vel.flatten())
-    F_d = mat_vec_mult(D, vel.flatten())
+    # F_c = mat_vec_mult(C, vel.flatten())
+    # F_d = mat_vec_mult(D, vel.flatten())
 
     return M + F_c + F_d + G
 
@@ -256,26 +255,26 @@ def calc_other_forces(pos, vel, cog, cob, mass, inertia, W, B, added_terms, quad
     D = calc_damping(vel, quadratic_coeff)
     G = calc_restoring(pos, cog, cob, W, B)
 
-    #F_c = np.dot(C, vel.reshape((6,1))).flatten()
-    #F_d = np.dot(D, vel.reshape((6,1))).flatten()
+    F_c = np.dot(C, vel.reshape((6,1))).flatten()
+    F_d = np.dot(D, vel.reshape((6,1))).flatten()
 
-    F_c = mat_vec_mult(C, vel.flatten())
-    F_d = mat_vec_mult(D, vel.flatten())
+    # F_c = mat_vec_mult(C, vel.flatten())
+    # F_d = mat_vec_mult(D, vel.flatten())
 
     return F_c + F_d + G
 
 
 #pythran export calc_coupled_forces(float[], float[], float[], float[], float[], float, float[], float, float, float[], float[])
 def calc_coupled_forces(pos, vel, des_vel, cog, cob, mass, inertia, W, B, added_terms, quadratic_coeff):
-
     C = calc_coriolis(vel, mass, cog, inertia, added_terms)
     D = calc_damping(des_vel, quadratic_coeff)
-
     G = calc_restoring(pos, cog, cob, W, B)
 
-    F_c = mat_vec_mult(C, vel.flatten())
-    F_d = mat_vec_mult(D, des_vel.flatten())
+    F_c = np.dot(C, vel.reshape((6,1))).flatten()
+    F_d = np.dot(D, vel.reshape((6,1))).flatten()
 
+    #F_c = mat_vec_mult(C, vel.flatten())
+    #F_d = mat_vec_mult(D, des_vel.flatten())
     #active = np.array([0.5, 1.0, 0.2, 0.0, 0.01, 0.01])
 
     return  F_c + F_d + G  # active*F_c + F_d + G
