@@ -224,8 +224,8 @@ class RVizInterface(object):
         msg.points = [Vector6(wp) for wp in wps]
         msg.options = [
             KeyValue('mode', mode),
-            KeyValue('target_speed', '0.75'),
-            KeyValue('look_ahead', '5.0'),
+            KeyValue('target_speed', '1.00'),
+            #KeyValue('look_ahead', '5.0'),
         ]
 
         self.pub_path.publish(msg)

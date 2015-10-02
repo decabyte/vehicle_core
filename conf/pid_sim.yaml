@@ -15,8 +15,8 @@ pilot:
         pos_n: { kp: 0.31831, ki: 0.0, kd: 0.0, lim: 0.0 }        # 1 / pi --> max out at 180 deg
 
         # velocity gains
-        vel_u: { kp: 40.0, ki: 0.300, kd: 0.00, lim: 32.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
-        vel_v: { kp: 60.0, ki: 0.300, kd: 0.00, lim: 24.0, input_lim: 1 }
+        vel_u: { kp: 40.0, ki: 0.300, kd: 0.00, lim: 30.0, input_lim: 2 }       # when input is 2 m produces 80 Newtons
+        vel_v: { kp: 60.0, ki: 0.300, kd: 0.00, lim: 25.0, input_lim: 1 }
         vel_w: { kp: 20.0, ki: 0.250, kd: 0.20, lim: 1.0, input_lim: 1 }
         vel_p: { kp: 0.00, ki: 0.000, kd: 0.00, lim: 0.0, input_lim: 1 }
         vel_q: { kp: 1.00, ki: 0.005, kd: 0.00, lim: 500.0, input_lim: 1 }
