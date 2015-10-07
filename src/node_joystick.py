@@ -110,6 +110,7 @@ class JoystickInterface(object):
         self.input_topic = topic_input
 
         # joystick state
+        self.last_seq = -1
         self.mode = MODE_FORCE
         self.vehicle = vehicle
         self.k_exp = np.clip(k_exp, 0.1, 2)     # clip exponential term (zero will produce errors)
@@ -123,7 +124,7 @@ class JoystickInterface(object):
         self.btn_stay = np.zeros(5)
 
         # ros interface
-        self.sub_joy = rospy.Subscriber(self.input_topic, Joy, self.handle_joystick, tcp_nodelay=True, queue_size=1)
+        self.sub_joy = rospy.Subscriber(self.input_topic, Joy, self.handle_joystick, tcp_nodelay=True, queue_size=10)
         self.pub_thr = rospy.Publisher(topic_throttle, ThrusterCommand, tcp_nodelay=True, queue_size=1)
         self.pub_for = rospy.Publisher(TOPIC_FORCES, Vector6Stamped, tcp_nodelay=True, queue_size=1)
         self.pub_stay = rospy.Publisher(topic_stay, PilotRequest, tcp_nodelay=True, queue_size=1)
@@ -152,7 +153,6 @@ class JoystickInterface(object):
         self.btn_controller[-1] = data.buttons[BTNS['sw_controller']]
         self.btn_stay[-1] = data.buttons[BTNS['sw_stay']]
 
-
         # ask the current position to the pilot
         if self.btn_stay[-1] == 1 and self.btn_stay[-2] == 0:
             try:
@@ -168,7 +168,6 @@ class JoystickInterface(object):
 
         self.btn_stay = np.roll(self.btn_stay, -1)
 
-
         # switch controller (on/off)
         if self.btn_controller[-1] == 1 and self.btn_controller[-2] == 0:
             self.mode_controller = not self.mode_controller
@@ -179,7 +178,6 @@ class JoystickInterface(object):
                 rospy.logerr('%s: controller service error', self.name)
 
         self.btn_controller = np.roll(self.btn_controller, -1)
-
 
         # switch thrusters (on/off)
         if self.btn_thrusters[-1] == 1 and self.btn_thrusters[-2] == 0:
@@ -192,7 +190,6 @@ class JoystickInterface(object):
 
         self.btn_thrusters = np.roll(self.btn_thrusters, -1)
 
-
         # # switch joystick mode
         # if self.btn_switch[-1] == 1 and self.btn_switch[-2] == 0:
         #     if self.mode == MODE_FORCE:
@@ -203,7 +200,6 @@ class JoystickInterface(object):
         #     rospy.loginfo('%s joystick now in mode: %s', self.name, self.mode)
         #
         # self.btn_switch = np.roll(self.btn_switch, -1)
-
 
         # parse buttons and select joystick mode
         depth_mode = data.buttons[BTNS['depth']]
@@ -241,6 +237,7 @@ class JoystickInterface(object):
             uf = Vector6Stamped()
             uf.header.stamp = rospy.Time.now()
             uf.values = forces.flatten().tolist()
+
             self.pub_for.publish(uf)
 
         elif self.vehicle == VEHICLE_EMILY:
@@ -263,51 +260,6 @@ class JoystickInterface(object):
                 thc.header.stamp = rospy.Time.now()
                 thc.throttle = throttle
                 self.pub_thr.publish(thc)
-
-        # # MULTIPLE MODES (this should be disabled after initial testing and debugging)
-        # # FORCES command mode
-        # #   send forces to the pilot
-        # if self.mode == MODE_FORCE:
-        #     uf = Vector6Stamped()
-        #     uf.header.stamp = rospy.Time.now()
-        #     uf.values = forces.flatten().tolist()
-        #     self.pub_for.publish(uf)
-        #
-        # # DIRECT command mode
-        # #   bypass the pilot and sends direct requests to thruster driver
-        # #   this is using the linearization model to transform forces to throttle
-        # #   and the thruster allocation matrix to distribute forces on vehicle axis
-        # elif self.mode == MODE_DIRECT:
-        #     # throttle mapping using the linearization and limits
-        #     tau = np.dot(tc.inv_TAM, forces)
-        #     throttle = tm.estimate_throttle(tau, tc.THRUST_TO_THROTTLE, tc.LINEAR_THROTTLE, tc.THRUST_THRESHOLD, tc.MAX_FORCE)
-        #     throttle = np.clip(throttle, -self.speed_limit, self.speed_limit)
-        #
-        #     # send throttle
-        #     thc = ThrusterCommand()
-        #     thc.header.stamp = rospy.Time.now()
-        #     thc.throttle = throttle.astype(int).flatten().tolist()
-        #     self.pub_thr.publish(thc)
-        #
-        # # SPEED command mode
-        # #   bypass the pilot and sends direct requests to thruster driver
-        # #   by applying a simple transformation (maybe useful for testing)
-        # elif self.mode == MODE_SPEED:
-        #     lat_rear = sway + -(yaw)
-        #     lat_front = sway + yaw
-        #
-        #     # create the speed vector
-        #     throttle = np.array([surge, surge, lat_rear, lat_front, heave, heave]) * 100
-        #     throttle = np.clip(throttle, -self.speed_limit, self.speed_limit)
-        #
-        #     # send throttle
-        #     thc = ThrusterCommand()
-        #     thc.header.stamp = rospy.Time.now()
-        #     thc.throttle = throttle.astype(int).flatten().tolist()
-        #     self.pub_thr.publish(thc)
-        #
-        # else:
-        #     pass
 
 
 if __name__ == '__main__':

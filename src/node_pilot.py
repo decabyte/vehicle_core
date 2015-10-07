@@ -141,9 +141,7 @@ CONSOLE_STATUS = """pilot:
   dis: %s
 """
 
-# TODO: add a counter to user requests in order to avoid remembering very old requests for a long time
 # TODO: if no requests are sent within a given timeout just disable the low-level controller and float!
-
 
 class VehiclePilot(object):
     """VehiclePilot class represent the ROS interface for the pilot subsystem.
@@ -653,6 +651,9 @@ class VehiclePilot(object):
 
         # compute the total force
         self.tau_total = self.tau_ctrl + self.tau_user
+
+        # only applies user forces once (user should publish at faster rate than pilot rate)
+        self.tau_user = np.zeros(6)
 
         # clip the total force using the local copy of maximum allowed force
         #self.u_total = np.clip(self.u_total, -tc.MAX_U, tc.MAX_U)
